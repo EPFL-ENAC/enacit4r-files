@@ -22,7 +22,7 @@ poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils#someref
 
 ### S3Service
 
-```
+```python
 from enacit4r.services.s3 import S3Service, S3Error
 from enacit4r.models.files import FileRef
 
@@ -42,13 +42,13 @@ except S3Error as e:
 
 ### FileChecker
 
-```
+```python
 from enacit4r.tools.files import FileChecker
 
 # Example using the default max file size
 file_checker = FileChecker()
 
-# Exampe usage with FastAPI
+# Example usage with FastAPI
 @router.post("/tmp",
              status_code=200,
              description="Upload any assets to S3",
@@ -60,7 +60,7 @@ async def upload_temp_files(
 
 ### FileNodeBuilder
 
-```
+```python
 from enacit4r.tools.files import FileNodeBuilder
 from enacit4r.models.files import FileNode
 
