@@ -1,6 +1,6 @@
 from fastapi.exceptions import HTTPException
 from fastapi.datastructures import UploadFile
-from enacit4r.models.files import FileRef, FileNode
+from enacit4r_files.models.files import FileRef, FileNode
 from urllib.parse import quote
 
 # 100 MB in binary
@@ -55,11 +55,11 @@ class FileNodeBuilder:
                              size = size,
                              alt_name = alt_name,
                              alt_path = alt_path,
-                             alt_size = alt_path,
+                             alt_size = alt_size,
                              is_file=is_file)
 
     @classmethod
-    def from_name(cls, name: str):
+    def from_name(cls, name: str, path: str = None, size: int = None):
         """Make a root file node from which children will be added.
 
         Args:
@@ -68,7 +68,7 @@ class FileNodeBuilder:
         Returns:
             FileNodeBuilder: The builder
         """
-        return cls(name = name, is_file = False)
+        return cls(name = name, path = path, size = size, is_file = False)
 
     @classmethod
     def from_ref(cls, file_ref: FileRef):
@@ -78,7 +78,7 @@ class FileNodeBuilder:
             file_ref (FileRef): The file reference
 
         Returns:
-            FileNodeBuilder: _The builder
+            FileNodeBuilder: The builder
         """
         return cls(name = file_ref.name, path = file_ref.path, size = file_ref.size,
                    is_file = True,
@@ -87,6 +87,7 @@ class FileNodeBuilder:
     def add_files(self, file_refs: list[FileRef]):
         for file_ref in file_refs:
             self.add_file(file_ref)
+        return self
 
     def add_file(self, file_ref: FileRef):
         """Add a file to the tree, from the root node makes the intermediate folder nodes.
@@ -95,7 +96,7 @@ class FileNodeBuilder:
             file_ref (FileRef): A dictionary representing a file object in S3
         """
         current_node = self.root
-        parts = file_ref.name.split('/')
+        parts = file_ref.path.split("/")
         current_parts = []
 
         for part in parts:
@@ -119,6 +120,8 @@ class FileNodeBuilder:
                 current_node = new_node
             else:
                 current_node = matching_child
+                
+        return self
 
     def build(self) -> FileNode:
         """Get the root of the tree of file nodes.
