@@ -1,21 +1,17 @@
 [tool.poetry]
-name = "enacit4r_files"
+name = "enacit4r-auth"
 version = "0.3.0"
-description = "Python file utils for EPFL ENAC IT4R developments"
+description = "Python authz utils for EPFL ENAC IT4R developments"
 authors = ["ymarcon <yannick.marcon@epfl.ch>"]
 license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-aiobotocore = "^2.15.2"
-pillow = "^11.0.0"
-pydantic = "^2.9.2"
+python-keycloak = "^4.7.0"
 fastapi = "^0.115.4"
+pydantic = "^2.9.2"
 
-
-[tool.poetry.group.test.dependencies]
-pytest = "^8.3.3"
 
 [build-system]
 requires = ["poetry-core"]

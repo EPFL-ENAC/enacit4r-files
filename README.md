@@ -5,19 +5,19 @@ A Python library of utils that are commomly used in the EPFL ENAC IT infrastruct
  * `S3Service`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage.
  * `FileChecker`: a class for checking the size of uploaded files.
  * `FileNodeBuilder`: a class to represent file references from S3 (`FileRef` class) a tree of file nodes (`FileNode` class) to facilitate the display of a folder in a web UI.
+ * `KeycloakService`: a service to authenticate users with Keycloak and check their roles.
 
 ## Usage
 
-To include the library in your project:
+To include the files library in your project:
 
 ```
-poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@files
+poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@someref#subdirectory=files
 ```
-
-For refering to a specific git tag/branch/commit:
+To include the authentication library in your project:
 
 ```
-poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@files#someref
+poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@someref#subdirectory=auth
 ```
 
 ### S3Service
@@ -68,4 +68,24 @@ builder = FileNodeBuilder.from_name("root")
 # include a list of FileRef from S3
 builder.add_files(file_refs)
 root = builder.build()
+```
+
+### KeycloakService
+  
+```python
+from enacit4r_auth.services.keycloak import KeycloakService, User
+
+kc_service = KeycloakService(config.KEYCLOAK_URL, config.KEYCLOAK_REALM, 
+    config.KEYCLOAK_CLIENT_ID, config.KEYCLOAK_CLIENT_SECRET, "myapp-admin-role")
+
+
+# Example usage with FastAPI
+@router.delete("/{file_path:path}",
+               status_code=204,
+               description="Delete asset present in S3, requires administrator role",
+               )
+async def delete_file(file_path: str, user: User = Depends(kc_service.require_admin())):
+    # delete path if it contains /tmp/
+    pass
+
 ```
