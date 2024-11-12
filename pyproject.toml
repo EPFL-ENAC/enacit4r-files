@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "enacit4r_files"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python file utils for EPFL ENAC IT4R developments"
 authors = ["ymarcon <yannick.marcon@epfl.ch>"]
 license = "MIT"

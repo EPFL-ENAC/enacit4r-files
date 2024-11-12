@@ -1,31 +1,17 @@
 # ENAC-IT4R Python Utils
 
-A Python library of utils that are commomly used in the EPFL ENAC IT infrastructure:
+A Python library of file utils that are commomly used in the EPFL ENAC IT infrastructure:
  
  * `S3Service`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage.
  * `FileChecker`: a class for checking the size of uploaded files.
  * `FileNodeBuilder`: a class to represent file references from S3 (`FileRef` class) a tree of file nodes (`FileNode` class) to facilitate the display of a folder in a web UI.
- * `KeycloakService`: a service to authenticate users with Keycloak and check their roles.
- * `QueryBuilder`: a class to build SQL queries with multiple related models and to facilitate results paging, sort and filters from a REST entry point.
-
+ 
 ## Usage
 
 To include the files library in your project:
 
 ```shell
-poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@someref#subdirectory=files
-```
-
-To include the authentication library in your project:
-
-```shell
-poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@someref#subdirectory=auth
-```
-
-To include the SQL library in your project:
-
-```shell
-poetry add git+https://github.com/EPFL-ENAC/enacit4r-pyutils@someref#subdirectory=sql
+poetry add git+https://github.com/EPFL-ENAC/enacit4r-files#someref
 ```
 
 Note: `someref` should be replaced by the commit hash, tag or branch name you want to use.
@@ -78,41 +64,4 @@ builder = FileNodeBuilder.from_name("root")
 # include a list of FileRef from S3
 builder.add_files(file_refs)
 root = builder.build()
-```
-
-### KeycloakService
-  
-```python
-from enacit4r_auth.services.keycloak import KeycloakService, User
-
-kc_service = KeycloakService(config.KEYCLOAK_URL, config.KEYCLOAK_REALM, 
-    config.KEYCLOAK_CLIENT_ID, config.KEYCLOAK_CLIENT_SECRET, "myapp-admin-role")
-
-
-# Example usage with FastAPI
-@router.delete("/{file_path:path}",
-               status_code=204,
-               description="Delete asset present in S3, requires administrator role",
-               )
-async def delete_file(file_path: str, user: User = Depends(kc_service.require_admin())):
-    # delete path if it contains /tmp/
-    pass
-
-```
-
-### QueryBuilder
-
-Note: WIP, query parameters to be modelized
-
-```python
-from enacit4r_sql.utils.query import QueryBuilder
-
-# Example of a query on Study model with a filter and a join on Builing model
-query_builder = QueryBuilder(model=Study,
-    filter = { "$building": { "$and": [ { "altitude": { "$gte": 1000 } }, { "climate_zone": ["Csa"] } ]}},
-    sort = ["name", "ASC"],
-    range = [0, 9],
-    joinModels = { "$building": Building })
-
-# TODO use query_builder to build a query
 ```
