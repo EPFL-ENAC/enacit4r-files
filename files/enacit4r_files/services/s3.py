@@ -5,8 +5,8 @@ from logging import info, error
 from fastapi.datastructures import UploadFile
 from typing import Tuple
 from PIL import Image
-from enacit4r.tools.files import image_mimetypes
-from enacit4r.models.files import FileRef
+from enacit4r_files.utils.files import image_mimetypes
+from enacit4r_files.models.files import FileRef
 import os
 import urllib.parse
 import mimetypes
