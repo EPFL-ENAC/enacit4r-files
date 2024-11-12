@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "enacit4r-sql"
+version = "0.3.0"
+description = "Python SQL utils for EPFL ENAC IT4R developments"
+authors = ["ymarcon <yannick.marcon@epfl.ch>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+sqlmodel = "^0.0.22"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
