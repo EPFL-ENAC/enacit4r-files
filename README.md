@@ -36,6 +36,18 @@ except S3Error as e:
     print(e)
 ```
 
+Available methods:
+
+* `upload_file`: Upload a file provided by FastAPI to S3.
+* `upload_local_file`: Upload a local file to S3.
+* `get_file`: Get a file content from S3.
+* `list_files`: List files from a "folder" in S3.
+* `path_exists`: Check if a file exists in S3.
+* `copy_file`: Copy a file in S3.
+* `move_file`: Move a file in S3.
+* `delete_file`: Delete a file in S3.
+
+
 ### FileChecker
 
 ```python
@@ -47,7 +59,7 @@ file_checker = FileChecker()
 # Example usage with FastAPI
 @router.post("/tmp",
              status_code=200,
-             description="Upload any assets to S3",
+             description="Upload any assets to S3 to a temporary folder",
              dependencies=[Depends(file_checker.check_size)])
 async def upload_temp_files(
         files: list[UploadFile] = File(description="multiple file upload")):

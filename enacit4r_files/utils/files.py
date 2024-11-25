@@ -111,11 +111,13 @@ class FileNodeBuilder:
                 if not is_file:
                     new_path = file_ref.path.split(new_path)[0] + new_path
                 new_size = file_ref.size if is_file else None
-                new_node = FileNode(name = part, path = new_path, size = new_size, is_file = is_file)
+                new_mime_type = file_ref.mime_type if is_file else None
+                new_node = FileNode(name = part, path = new_path, size = new_size, mime_type=new_mime_type, is_file = is_file)
                 if is_file and file_ref.alt_name:
                     new_node.alt_name = file_ref.alt_name
                     new_node.alt_path = file_ref.alt_path
                     new_node.alt_size = file_ref.alt_size
+                    new_node.alt_mime_type = file_ref.alt_mime_type
                 current_node.children.append(new_node)
                 current_node = new_node
             else:
