@@ -372,9 +372,11 @@ class S3Service(object):
                     name=name,
                     path=urllib.parse.quote(key),
                     size=uploads3,
+                    mime_type=mimetype,
                     alt_name=alt_name,
                     alt_path=urllib.parse.quote(alt_key),
-                    alt_size=alt_uploads3
+                    alt_size=alt_uploads3,
+                    alt_mime_type=upload_file.content_type
                 )
 
     async def _upload_file(self, upload_file: UploadFile, s3_folder: str = "") -> FileRef:
@@ -401,7 +403,8 @@ class S3Service(object):
             return FileRef(
                 name=name,
                 path=urllib.parse.quote(key),
-                size=uploads3
+                size=uploads3,
+                mime_type=upload_file.content_type
             )
         else:
             raise S3Error("Failed to upload file to S3")
@@ -445,9 +448,11 @@ class S3Service(object):
                 name=orig_info["name"],
                 path=orig_info["path"],
                 size=orig_info["size"],
+                mime_type=orig_info["mime_type"],
                 alt_name=alt_info["name"],
                 alt_path=alt_info["path"],
-                alt_size=alt_info["size"]
+                alt_size=alt_info["size"],
+                alt_mime_type=alt_info["mime_type"]
              ) if alt_info else orig_info
 
     def _convert_image_file(self, parent_path: str, file_path: str) -> str:
@@ -477,17 +482,19 @@ class S3Service(object):
 
         (filename, name) = await self._get_unique_filename(file_path, s3_folder=s3_folder)
         key = f"{self.path_prefix}{filename}"
+        mime_type = self._get_mime_type(file_path)
         with open(os.path.join(parent_path, file_path), 'rb') as file:
             uploads3 = await self._upload_fileobj(bucket=self.bucket,
                                                   key=key,
                                                   data=file,
-                                                  mimetype=self._get_mime_type(file_path))
+                                                  mimetype=mime_type)
         if uploads3:
             # response http to be used by the frontend
             return FileRef(
                 name=name,
                 path=urllib.parse.quote(key),
-                size=uploads3
+                size=uploads3,
+                mime_type=mime_type
             )
         else:
             raise S3Error("Failed to upload file to S3")
