@@ -337,7 +337,7 @@ class S3Service(object):
         """
         if upload_file.content_type == "image/webp":
             # no need to convert to webp
-            return self._upload_file(upload_file, s3_folder)
+            return await self._upload_file(upload_file, s3_folder)
         else:
             # convert to bytes
             (data, origin_data) = await self._convert_image(upload_file)
