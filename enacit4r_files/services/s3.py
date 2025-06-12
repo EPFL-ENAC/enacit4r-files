@@ -1,5 +1,6 @@
 from typing import List, Tuple, Any
 from aiobotocore.session import get_session
+from botocore.config import Config
 from io import BytesIO
 from logging import info, error
 from fastapi.datastructures import UploadFile
@@ -61,13 +62,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # check if file_path exists
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             try:
                 response = await client.head_object(
                     Bucket=self.bucket, Key=key)
@@ -90,13 +85,7 @@ class S3Service(object):
 
         keys = []
         # list files in folder_path
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             paginator = client.get_paginator('list_objects_v2')
             async for page in paginator.paginate(Bucket=self.bucket, Prefix=key):
                 if 'Contents' in page:
@@ -116,13 +105,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # get file from file path
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             try:
                 response = await client.get_object(
                     Bucket=self.bucket, Key=key)
@@ -201,13 +184,7 @@ class S3Service(object):
         destination_key = self.to_s3_key(destination_path)
 
         # copy file_path to new location
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             response = await client.copy_object(
                 Bucket=self.bucket,
                 CopySource={'Bucket': self.bucket, 'Key': source_key},
@@ -231,13 +208,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # delete file_path
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             response = await client.delete_object(
                 Bucket=self.bucket, Key=key)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
@@ -258,13 +229,7 @@ class S3Service(object):
         folder_key = self.to_s3_key(file_path)
 
         # delete file_path
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             # delete content, if any
             paginator = client.get_paginator('list_objects_v2')
             async for result in paginator.paginate(Bucket=self.bucket, Prefix=folder_key):
@@ -286,6 +251,30 @@ class S3Service(object):
     #
     # Private methods
     #
+    
+    def _create_client(self):
+        """Create an S3 client using the provided credentials and endpoint URL.
+
+        Returns:
+            Any: The S3 client.
+        """
+        config = Config(
+            s3={
+                'payload_signing_enabled': False,
+                'use_accelerate_endpoint': False,
+                'checksum_mode': 'DISABLED',
+                'addressing_style': 'path'
+            },
+            signature_version='s3v4'
+        )
+        session = get_session()
+        return session.create_client(
+            's3',
+            region_name=self.region,
+            endpoint_url=self.s3_endpoint_url,
+            aws_secret_access_key=self.s3_secret_access_key,
+            aws_access_key_id=self.s3_access_key_id,
+            config=config)
 
     async def _convert_image(self, upload_file: UploadFile) -> Tuple[BytesIO, BytesIO]:
         """Convert an image to webp format
@@ -511,13 +500,7 @@ class S3Service(object):
         Returns:
             bool: True if upload was successful, the object size in bytes otherwise
         """
-        session = get_session()
-        async with session.create_client(
-                's3',
-                region_name=self.region,
-                endpoint_url=self.s3_endpoint_url,
-                aws_secret_access_key=self.s3_secret_access_key,
-                aws_access_key_id=self.s3_access_key_id) as client:
+        async with self._create_client() as client:
             resp = await client.put_object(
                 Bucket=bucket,
                 Key=key,
