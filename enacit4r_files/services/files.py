@@ -1,6 +1,7 @@
 from typing import List, Tuple, Any
 from fastapi.datastructures import UploadFile
 from ..models.files import FileNode
+from ..utils.files import FileNodeBuilder
 from .s3 import S3Service
 import logging
 import shutil
@@ -178,6 +179,41 @@ class LocalFilesStore(FilesStore):
         raise ValueError(f"Path {path} is outside the base path")
     return full_path
   
+  def _dump_file_node(self, file_node: FileNode, file_path: Path):
+    """Dump a FileNode to a JSON file.
+
+    Args:
+        file_node (FileNode): The file node to dump.
+        file_path (Path): The path to the reference file.
+    """
+    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    with open(json_path, "w") as f:
+      f.write(file_node.model_dump_json())
+  
+  def _read_file_node(self, file_path: Path) -> FileNode:
+    """Read a FileNode from a JSON file.
+
+    Args:
+        file_path (Path): The path to the reference file.
+    Returns:
+        FileNode: The loaded file node.
+    """
+    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    with open(json_path, "r") as f:
+      json_content = f.read()
+    file_node = FileNode.model_validate_json(json_content)
+    return file_node
+  
+  def _delete_file_node(self, file_path: Path):
+    """Delete the metadata file associated with a file.
+
+    Args:
+        file_path (Path): The path to the reference file.
+    """
+    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    if json_path.exists():
+      json_path.unlink()
+  
   async def upload_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
     """Upload a file to the specified folder.
 
@@ -212,13 +248,18 @@ class LocalFilesStore(FilesStore):
     # Create relative path for return
     rel_path = file_path.relative_to(self.base_path).as_posix()
     
-    return FileNode(
+    node = FileNode(
       name=file_path.name,
       path=rel_path,
       size=size,
       mime_type=mime_type,
       is_file=True
     )
+    
+    # Dump node in metadata file
+    self._dump_file_node(node, file_path)
+    
+    return node
   
   async def upload_local_file(self, file_path: str, folder: str = "") -> FileNode:
     """Upload a local file to the specified folder.
@@ -258,13 +299,18 @@ class LocalFilesStore(FilesStore):
     # Create relative path for return
     rel_path = destination_path.relative_to(self.base_path).as_posix()
     
-    return FileNode(
+    node = FileNode(
       name=destination_path.name,
       path=rel_path,
       size=stat.st_size,
       mime_type=mime_type,
       is_file=True
     )
+    
+    # Dump node in metadata file
+    self._dump_file_node(node, destination_path)
+    
+    return node
   
   async def get_file(self, file_path: str) -> Tuple[Any, Any]:
     """Extract file content and mimetype from local storage
@@ -309,19 +355,20 @@ class LocalFilesStore(FilesStore):
     file_nodes = []
     
     for item in target_dir.iterdir():
+      if item.suffix == ".meta":
+        continue  # Skip metadata files
+      
       rel_path = item.relative_to(self.base_path).as_posix()
       
+      # List meta files only as part of the associated file
       if item.is_file():
-        stat = item.stat()
-        mime_type, _ = mimetypes.guess_type(str(item))
-        
-        file_nodes.append(FileNode(
-          name=item.name,
-          path=rel_path,
-          size=stat.st_size,
-          mime_type=mime_type,
-          is_file=True
-        ))
+        # Read associated file node
+        try:
+          node = self._read_file_node(item)
+          if node:
+            file_nodes.append(node)
+        except Exception as e:
+          logging.warning(f"Could not read metadata for {item}: {e}")
       elif item.is_dir():
         file_nodes.append(FileNode(
           name=item.name,
@@ -368,6 +415,17 @@ class LocalFilesStore(FilesStore):
       destination.parent.mkdir(parents=True, exist_ok=True)
       
       shutil.copy2(source, destination)
+      
+      # Read metadata from source and write to destination
+      try:
+        node = self._read_file_node(source)
+        # Create new node for destination
+        node.name = destination.name
+        node.path = destination_path
+        self._dump_file_node(node, destination)
+      except Exception as e:
+        logging.warning(f"Could not copy metadata for {source_path} to {destination_path}: {e}")
+      
       return True
     except Exception as e:
       logging.error(f"Error copying file from {source_path} to {destination_path}: {e}")
@@ -394,6 +452,19 @@ class LocalFilesStore(FilesStore):
       destination.parent.mkdir(parents=True, exist_ok=True)
       
       shutil.move(source, destination)
+      
+      # Move metadata from source to destination
+      try:
+        node = self._read_file_node(source)
+        # Update path in node
+        node.name = destination.name
+        node.path = destination_path
+        self._dump_file_node(node, destination)
+        # Remove old metadata file
+        self._delete_file_node(source)
+      except Exception as e:
+        logging.warning(f"Could not move metadata for {source_path} to {destination_path}: {e}")
+      
       return True
     except Exception as e:
       logging.error(f"Error moving file from {source_path} to {destination_path}: {e}")
@@ -416,6 +487,7 @@ class LocalFilesStore(FilesStore):
       
       if full_path.is_file():
         full_path.unlink()
+        self._delete_file_node(full_path)
       elif full_path.is_dir():
         shutil.rmtree(full_path)
       
@@ -433,6 +505,45 @@ class S3FilesStore(FilesStore):
     """Initialize the files service."""
     super().__init__(key=key)
     self.s3_service = s3_service
+  
+  async def _dump_file_node(self, file_node: FileNode, folder: str):
+    """Dump a FileNode to a JSON file in S3.
+    Args:
+        file_node (FileNode): The file node to dump.
+        folder (str): The folder in S3 to dump the file node to.
+    """
+    json_name = f"{file_node.name}.meta"
+    # Make temp directory and dump json file
+    with tempfile.TemporaryDirectory() as temp_dir:
+      temp_path = Path(temp_dir) / json_name
+      with open(temp_path, "w") as f:
+        f.write(file_node.model_dump_json())
+      # Upload to S3
+      s3_folder = folder.rstrip("/") if folder else ""
+      with open(temp_path, "rb") as f:
+        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder)
+  
+  async def _read_file_node(self, file_key: str) -> FileNode:
+    """Read a FileNode from a JSON file in S3.
+    Args:
+        file_key (str): The S3 key of the reference file.
+    Returns:
+        FileNode: The loaded file node if available, otherwise None.
+    """
+    json_key = f"{file_key}.meta" if not file_key.endswith(".meta") else file_key
+    json_content = await self.s3_service.get_file(json_key)
+    if json_content is not False:
+      file_node = FileNode.model_validate_json(json_content.decode("utf-8"))
+      return file_node
+    return None
+  
+  async def _delete_file_node(self, file_key: str):
+    """Delete the metadata file associated with a file in S3.
+    Args:
+        file_key (str): The S3 key of the reference file.
+    """
+    json_key = f"{file_key}.meta" if not file_key.endswith(".meta") else file_key
+    await self.s3_service.delete_file(json_key)
   
   async def upload_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
     """Upload a file to the specified folder.
@@ -460,17 +571,13 @@ class S3FilesStore(FilesStore):
     file_ref = await self.s3_service.upload_file(encrypted_file, folder)
     
     # Convert FileRef to FileNode
-    return FileNode(
-      name=file_ref.name,
-      path=file_ref.path,
-      size=size,  # Use original size before encryption
-      mime_type=file_ref.mime_type,
-      alt_name=file_ref.alt_name,
-      alt_path=file_ref.alt_path,
-      alt_size=file_ref.alt_size,
-      alt_mime_type=file_ref.alt_mime_type,
-      is_file=True
-    )
+    node = FileNodeBuilder.from_ref(file_ref).build()
+    node.size = size  # Use original size before encryption
+    
+    # Dump file metadata in S3
+    await self._dump_file_node(node, folder)
+    
+    return node
 
   async def upload_local_file(self, file_path: str, folder: str = "") -> FileNode:
     """Upload a local file to the specified folder.
@@ -515,17 +622,13 @@ class S3FilesStore(FilesStore):
       file_ref = await self.s3_service.upload_local_file(parent_path, relative_path, folder)
     
     # Convert FileRef to FileNode
-    return FileNode(
-      name=file_ref.name,
-      path=file_ref.path,
-      size=size,  # Use original size before encryption
-      mime_type=file_ref.mime_type,
-      alt_name=file_ref.alt_name,
-      alt_path=file_ref.alt_path,
-      alt_size=file_ref.alt_size,
-      alt_mime_type=file_ref.alt_mime_type,
-      is_file=True
-    )
+    node = FileNodeBuilder.from_ref(file_ref).build()
+    node.size = size  # Use original size before encryption
+    
+    # Dump file metadata in S3
+    await self._dump_file_node(node, folder)
+    
+    return node
 
   async def get_file(self, file_path: str) -> Tuple[Any, Any]:
     """Extract file content and mimetype from storage.
@@ -579,21 +682,17 @@ class S3FilesStore(FilesStore):
       
       if len(path_parts) == 1 and path_parts[0]:  # Direct file
         item_name = path_parts[0]
+        if item_name.endswith(".meta"):
+          continue  # Skip metadata files
         if item_name not in seen_items:
           seen_items.add(item_name)
-          # Get file details
+          # Get file details from associate metadata file
           try:
-            content, mime_type = await self.s3_service.get_file(key)
-            size = len(content) if content else 0
-            file_nodes.append(FileNode(
-              name=item_name,
-              path=urllib.parse.unquote(key),
-              size=size,
-              mime_type=mime_type,
-              is_file=True
-            ))
+            node = await self._read_file_node(key)
+            if node:
+              file_nodes.append(node)
           except Exception as e:
-            logging.error(f"Error getting file details for {key}: {e}")
+            logging.warning(f"Could not read metadata for {key}: {e}")
       elif len(path_parts) > 1 and path_parts[0]:  # Folder
         folder_name = path_parts[0]
         if folder_name not in seen_items:
@@ -630,6 +729,15 @@ class S3FilesStore(FilesStore):
     """
     try:
       result = await self.s3_service.copy_file(source_path, destination_path)
+      if result is not False:
+        # Copy metadata file as well
+        try:
+          node = await self._read_file_node(source_path)
+          if node:
+            node.path = destination_path
+            await self._dump_file_node(node, os.path.dirname(destination_path))
+        except Exception as e:
+          logging.warning(f"Could not copy metadata for {source_path} to {destination_path}: {e}")
       return result is not False
     except Exception as e:
       logging.error(f"Error copying file from {source_path} to {destination_path}: {e}")
@@ -647,6 +755,18 @@ class S3FilesStore(FilesStore):
     """
     try:
       result = await self.s3_service.move_file(source_path, destination_path)
+      if result is not False:
+        # Move metadata file as well
+        try:
+          node = await self._read_file_node(source_path)
+          if node:
+            node.name = os.path.basename(destination_path)
+            node.path = destination_path
+            await self._dump_file_node(node, os.path.dirname(destination_path))
+            # Delete old metadata file
+            await self._delete_file_node(source_path)
+        except Exception as e:
+          logging.warning(f"Could not move metadata for {source_path} to {destination_path}: {e}")
       return result is not False
     except Exception as e:
       logging.error(f"Error moving file from {source_path} to {destination_path}: {e}")
@@ -663,6 +783,8 @@ class S3FilesStore(FilesStore):
     """
     try:
       result = await self.s3_service.delete_file(file_path)
+      if result is not False:
+        await self._delete_file_node(file_path)
       return result is not False
     except Exception as e:
       logging.error(f"Error deleting file at {file_path}: {e}")

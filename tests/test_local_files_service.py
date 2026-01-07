@@ -1,6 +1,7 @@
 import pytest
 import tempfile
 import shutil
+import json
 from pathlib import Path
 from io import BytesIO
 from cryptography.fernet import Fernet
@@ -136,11 +137,13 @@ class TestLocalFilesStore:
     @pytest.mark.asyncio
     async def test_list_files(self, local_service):
         """Test listing files in a directory."""
-        # Create some test files and directories
-        (local_service.base_path / "file1.txt").write_text("content1")
-        (local_service.base_path / "file2.txt").write_text("content2")
+        # Create some test files using upload method
+        await local_service.upload_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")))
+        await local_service.upload_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")))
+        
+        # Create a subdirectory with a file
         (local_service.base_path / "subdir").mkdir()
-        (local_service.base_path / "subdir" / "file3.txt").write_text("content3")
+        await local_service.upload_file(UploadFile(filename="file3.txt", file=BytesIO(b"content3")), folder="subdir")
         
         result = await local_service.list_files("")
         
@@ -161,10 +164,9 @@ class TestLocalFilesStore:
     @pytest.mark.asyncio
     async def test_list_files_in_subfolder(self, local_service):
         """Test listing files in a subfolder."""
-        subdir = local_service.base_path / "subdir"
-        subdir.mkdir()
-        (subdir / "file1.txt").write_text("content1")
-        (subdir / "file2.txt").write_text("content2")
+        # Create files using upload method
+        await local_service.upload_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")), folder="subdir")
+        await local_service.upload_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")), folder="subdir")
         
         result = await local_service.list_files("subdir")
         
@@ -558,7 +560,7 @@ class TestLocalFilesStoreWithEncryption:
             )
             await service.upload_file(upload_file)
         
-        # List files
+        # List files (now reads from .meta files only, so no need to filter)
         result = await service.list_files("")
         
         assert len(result) == 3
@@ -616,3 +618,326 @@ class TestLocalFilesStoreWithEncryption:
         # Retrieve and verify
         retrieved_content, _ = await service.get_file("special.txt")
         assert retrieved_content == special_content
+
+
+class TestMetadataFiles:
+    """Test suite for JSON metadata files that are dumped alongside managed files."""
+
+    @pytest.mark.asyncio
+    async def test_upload_file_creates_metadata(self, local_service):
+        """Test that uploading a file creates a corresponding metadata JSON file."""
+        content = b"Test content for metadata"
+        upload_file = UploadFile(
+            filename="test_meta.txt",
+            file=BytesIO(content)
+        )
+        
+        result = await local_service.upload_file(upload_file, folder="metadata_test")
+        assert result is not None
+        assert isinstance(result, FileNode)
+        
+        # Verify metadata file exists
+        file_path = local_service.base_path / "metadata_test" / "test_meta.txt"
+        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        assert meta_path.exists()
+        
+        # Verify metadata content
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["name"] == "test_meta.txt"
+        assert metadata["path"] == "metadata_test/test_meta.txt"
+        assert metadata["size"] == len(content)
+        assert metadata["mime_type"] == "text/plain"
+        assert metadata["is_file"] is True
+
+    @pytest.mark.asyncio
+    async def test_upload_local_file_creates_metadata(self, local_service, sample_file):
+        """Test that uploading a local file creates metadata JSON file."""
+        await local_service.upload_local_file(sample_file, folder="local_meta")
+        
+        # Verify metadata file exists
+        file_path = local_service.base_path / "local_meta" / "sample.txt"
+        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        assert meta_path.exists()
+        
+        # Verify metadata content
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["name"] == "sample.txt"
+        assert metadata["path"] == "local_meta/sample.txt"
+        assert metadata["is_file"] is True
+
+    @pytest.mark.asyncio
+    async def test_metadata_file_naming(self, local_service):
+        """Test that metadata files are named correctly with .meta extension."""
+        test_files = [
+            "simple.txt",
+            "with.dots.in.name.csv",
+            "no_extension",
+        ]
+        
+        for filename in test_files:
+            upload_file = UploadFile(
+                filename=filename,
+                file=BytesIO(b"content")
+            )
+            await local_service.upload_file(upload_file)
+            
+            file_path = local_service.base_path / filename
+            # Metadata file should be <filename>.<extension>.meta
+            if "." in filename:
+                expected_meta = file_path.parent / (filename + ".meta")
+            else:
+                expected_meta = file_path.with_suffix(".meta")
+            
+            assert expected_meta.exists(), f"Metadata file not found for {filename}"
+
+    @pytest.mark.asyncio
+    async def test_copy_file_copies_metadata(self, local_service):
+        """Test that copying a file also copies its metadata."""
+        # Create a file with metadata
+        upload_file = UploadFile(
+            filename="original.txt",
+            file=BytesIO(b"Original content")
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Copy the file
+        await local_service.copy_file("original.txt", "copy.txt")
+        
+        # Verify both metadata files exist
+        original_meta = local_service.base_path / "original.txt.meta"
+        copy_meta = local_service.base_path / "copy.txt.meta"
+        
+        assert original_meta.exists()
+        assert copy_meta.exists()
+        
+        # Verify copy metadata has updated path
+        with open(copy_meta, "r") as f:
+            copy_metadata = json.load(f)
+        
+        assert copy_metadata["name"] == "copy.txt"  # Name is updated
+        assert copy_metadata["path"] == "copy.txt"  # Path is updated
+
+    @pytest.mark.asyncio
+    async def test_move_file_moves_metadata(self, local_service):
+        """Test that moving a file also moves its metadata."""
+        # Create a file with metadata
+        upload_file = UploadFile(
+            filename="source.txt",
+            file=BytesIO(b"Source content")
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Verify metadata exists before move
+        source_meta = local_service.base_path / "source.txt.meta"
+        assert source_meta.exists()
+        
+        # Move the file
+        await local_service.move_file("source.txt", "destination.txt")
+        
+        # Verify old metadata is gone and new exists
+        assert not source_meta.exists()
+        dest_meta = local_service.base_path / "destination.txt.meta"
+        assert dest_meta.exists()
+        
+        # Verify metadata has updated path
+        with open(dest_meta, "r") as f:
+            dest_metadata = json.load(f)
+        
+        assert dest_metadata["path"] == "destination.txt"
+
+    @pytest.mark.asyncio
+    async def test_delete_file_deletes_metadata(self, local_service):
+        """Test that deleting a file also deletes its metadata."""
+        # Create a file with metadata
+        upload_file = UploadFile(
+            filename="delete_test.txt",
+            file=BytesIO(b"Delete this")
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Verify metadata exists
+        meta_path = local_service.base_path / "delete_test.txt.meta"
+        assert meta_path.exists()
+        
+        # Delete the file
+        await local_service.delete_file("delete_test.txt")
+        
+        # Verify both file and metadata are gone
+        file_path = local_service.base_path / "delete_test.txt"
+        assert not file_path.exists()
+        assert not meta_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_metadata_contains_all_fields(self, local_service):
+        """Test that metadata JSON contains all FileNode fields."""
+        content = b"Complete metadata test"
+        upload_file = UploadFile(
+            filename="complete.json",
+            file=BytesIO(content)
+        )
+        
+        await local_service.upload_file(upload_file, folder="complete")
+        
+        # Read metadata file
+        meta_path = local_service.base_path / "complete" / "complete.json.meta"
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        # Verify all required fields are present
+        assert "name" in metadata
+        assert "path" in metadata
+        assert "size" in metadata
+        assert "mime_type" in metadata
+        assert "is_file" in metadata
+        
+        # Verify values match the uploaded file
+        assert metadata["name"] == "complete.json"
+        assert metadata["path"] == "complete/complete.json"
+        assert metadata["size"] == len(content)
+        assert metadata["mime_type"] == "application/json"
+        assert metadata["is_file"] is True
+
+    @pytest.mark.asyncio
+    async def test_read_metadata_from_json(self, local_service):
+        """Test reading FileNode from metadata JSON file."""
+        # Create a file with metadata
+        content = b"Read metadata test"
+        upload_file = UploadFile(
+            filename="read_meta.txt",
+            file=BytesIO(content)
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Read metadata using service method
+        file_path = local_service.base_path / "read_meta.txt"
+        file_node = local_service._read_file_node(file_path)
+        
+        # Verify FileNode was reconstructed correctly
+        assert isinstance(file_node, FileNode)
+        assert file_node.name == "read_meta.txt"
+        assert file_node.path == "read_meta.txt"
+        assert file_node.size == len(content)
+        assert file_node.mime_type == "text/plain"
+        assert file_node.is_file is True
+
+    @pytest.mark.asyncio
+    async def test_metadata_with_subdirectories(self, local_service):
+        """Test that metadata files work correctly in subdirectories."""
+        content = b"Subdirectory test"
+        upload_file = UploadFile(
+            filename="subdir_file.txt",
+            file=BytesIO(content)
+        )
+        
+        await local_service.upload_file(upload_file, folder="sub/dir/path")
+        
+        # Verify metadata file in subdirectory
+        file_path = local_service.base_path / "sub" / "dir" / "path" / "subdir_file.txt"
+        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        assert meta_path.exists()
+        
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["path"] == "sub/dir/path/subdir_file.txt"
+
+    @pytest.mark.asyncio
+    async def test_metadata_with_encryption(self, temp_dir, fernet_key):
+        """Test that metadata files contain original (unencrypted) file size."""
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
+        
+        original_content = b"Encrypted file content"
+        upload_file = UploadFile(
+            filename="encrypted.txt",
+            file=BytesIO(original_content)
+        )
+        
+        await service.upload_file(upload_file)
+        
+        # Verify metadata exists
+        meta_path = service.base_path / "encrypted.txt.meta"
+        assert meta_path.exists()
+        
+        # Verify metadata contains original size (not encrypted size)
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["size"] == len(original_content)
+        
+        # Verify actual file on disk is larger (encrypted)
+        file_path = service.base_path / "encrypted.txt"
+        encrypted_size = file_path.stat().st_size
+        assert encrypted_size > len(original_content)
+
+    @pytest.mark.asyncio
+    async def test_metadata_json_format_is_valid(self, local_service):
+        """Test that metadata JSON is valid and can be parsed."""
+        upload_file = UploadFile(
+            filename="valid_json.txt",
+            file=BytesIO(b"JSON validity test")
+        )
+        
+        await local_service.upload_file(upload_file)
+        
+        meta_path = local_service.base_path / "valid_json.txt.meta"
+        
+        # Attempt to parse JSON - should not raise exception
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        
+        # Should be a dictionary
+        assert isinstance(metadata, dict)
+
+    @pytest.mark.asyncio
+    async def test_copy_to_subfolder_updates_metadata_path(self, local_service):
+        """Test that copying file to subfolder correctly updates metadata path."""
+        # Create source file
+        upload_file = UploadFile(
+            filename="source.txt",
+            file=BytesIO(b"Source")
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Copy to subfolder
+        await local_service.copy_file("source.txt", "subfolder/destination.txt")
+        
+        # Verify destination metadata has correct path
+        dest_meta = local_service.base_path / "subfolder" / "destination.txt.meta"
+        assert dest_meta.exists()
+        
+        with open(dest_meta, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["name"] == "destination.txt"
+        assert metadata["path"] == "subfolder/destination.txt"
+
+    @pytest.mark.asyncio
+    async def test_move_to_subfolder_updates_metadata_path(self, local_service):
+        """Test that moving file to subfolder correctly updates metadata path."""
+        # Create source file
+        upload_file = UploadFile(
+            filename="move_source.txt",
+            file=BytesIO(b"Move me")
+        )
+        await local_service.upload_file(upload_file)
+        
+        # Move to subfolder
+        await local_service.move_file("move_source.txt", "subfolder/moved.txt")
+        
+        # Verify old metadata is gone
+        old_meta = local_service.base_path / "move_source.txt.meta"
+        assert not old_meta.exists()
+        
+        # Verify new metadata has correct path
+        new_meta = local_service.base_path / "subfolder" / "moved.txt.meta"
+        assert new_meta.exists()
+        
+        with open(new_meta, "r") as f:
+            metadata = json.load(f)
+        
+        assert metadata["name"] == "moved.txt"
+        assert metadata["path"] == "subfolder/moved.txt"
