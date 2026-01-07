@@ -1,6 +1,6 @@
 # ENAC-IT4R Python Files Utils
 
-A Python library of files utils that are commomly used in the EPFL ENAC IT infrastructure:
+A Python library of files utils that are commonly used in the EPFL ENAC IT infrastructure:
  
  * `LocalFilesService`: a service to upload, get, list, check, copy, move and delete files in a local file storage, with optional encryption support.
  * `S3Service`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage.

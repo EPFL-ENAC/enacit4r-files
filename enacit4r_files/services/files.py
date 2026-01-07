@@ -198,7 +198,7 @@ class LocalFilesService(FilesService):
     mime_type, _ = mimetypes.guess_type(str(file_path))
     
     # Encrypt content if needed
-    content_to_write = self.encrypt_content(content) if self.fernet else content
+    content_to_write = self.encrypt_content(content)
     
     # Write the file (only once)
     with open(file_path, "wb") as f:

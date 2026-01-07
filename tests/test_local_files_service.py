@@ -19,7 +19,7 @@ def temp_dir():
 
 
 @pytest.fixture
-def local_service(temp_dir, fernet_key = None):
+def local_service(temp_dir, fernet_key=None):
     """Create a LocalFilesService instance with a temporary base path."""
     return LocalFilesService(base_path=temp_dir, key=fernet_key)
 
