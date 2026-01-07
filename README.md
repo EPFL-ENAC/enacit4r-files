@@ -11,10 +11,17 @@ A Python library of files utils that are commomly used in the EPFL ENAC IT infra
 To include the files library in your project:
 
 ```shell
+# Using Poetry
 poetry add git+https://github.com/EPFL-ENAC/enacit4r-files#someref
+# Using uv
+uv add git+https://github.com/EPFL-ENAC/enacit4r-files#someref
 ```
 
 Note: `someref` should be replaced by the commit hash, tag or branch name you want to use.
+
+## Development
+
+See the Makefile for available commands.
 
 ### S3Service
 
