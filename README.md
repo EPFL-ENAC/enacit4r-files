@@ -2,6 +2,7 @@
 
 A Python library of files utils that are commomly used in the EPFL ENAC IT infrastructure:
  
+ * `LocalFilesService`: a service to upload, get, list, check, copy, move and delete files in a local file storage, with optional encryption support.
  * `S3Service`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage.
  * `FileChecker`: a class for checking the size of uploaded files.
  * `FileNodeBuilder`: a class to represent file references from S3 (`FileRef` class) a tree of file nodes (`FileNode` class) to facilitate the display of a folder in a web UI.
@@ -40,10 +41,23 @@ Available methods:
 
 ### LocalFilesService
 
+Basic usage:
+
 ```python
 from enacit4r_files.services.files import LocalFilesService
 from enacit4r_files.models.files import FileNode
 local_service = LocalFilesService("/tmp/enacit4r_files")
+# do something with local_service
+```
+
+Encryption usage:
+
+```python
+from enacit4r_files.services.files import LocalFilesService
+from enacit4r_files.models.files import FileNode
+from cryptography.fernet import Fernet
+key = Fernet.generate_key()
+local_service = LocalFilesService("/tmp/enacit4r_files", key=key)
 # do something with local_service
 ```
 
