@@ -23,6 +23,30 @@ Note: `someref` should be replaced by the commit hash, tag or branch name you wa
 
 See the Makefile for available commands.
 
+## Services
+
+The files management API is defined by the FilesService interface, which is implemented by LocalFilesService.
+
+Available methods:
+
+* `upload_file`: Upload a file provided by FastAPI to S3.
+* `upload_local_file`: Upload a local file to S3.
+* `get_file`: Get a file content from S3.
+* `list_files`: List files from a "folder" in S3.
+* `path_exists`: Check if a file exists in S3.
+* `copy_file`: Copy a file in S3.
+* `move_file`: Move a file in S3.
+* `delete_file`: Delete a file in S3.
+
+### LocalFilesService
+
+```python
+from enacit4r_files.services.files import LocalFilesService
+from enacit4r_files.models.files import FileNode
+local_service = LocalFilesService("/tmp/enacit4r_files")
+# do something with local_service
+```
+
 ### S3Service
 
 ```python
@@ -43,17 +67,7 @@ except S3Error as e:
     print(e)
 ```
 
-Available methods:
-
-* `upload_file`: Upload a file provided by FastAPI to S3.
-* `upload_local_file`: Upload a local file to S3.
-* `get_file`: Get a file content from S3.
-* `list_files`: List files from a "folder" in S3.
-* `path_exists`: Check if a file exists in S3.
-* `copy_file`: Copy a file in S3.
-* `move_file`: Move a file in S3.
-* `delete_file`: Delete a file in S3.
-
+## Tools
 
 ### FileChecker
 
