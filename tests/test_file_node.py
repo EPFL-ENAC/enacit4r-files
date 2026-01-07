@@ -1,4 +1,4 @@
-import json
+# import json
 from enacit4r_files.models.files import FileRef
 from enacit4r_files.utils.files import FileNodeBuilder
 
@@ -14,11 +14,12 @@ def test_empty_file_node():
   assert file_node.children == []
 
 def test_single_file_node():
-  ref = FileRef(name="file.txt", path="/file.txt", size=100)
+  ref = FileRef(name="file.txt", path="/file.txt", size=100, mime_type="text/plain")
   file_node = FileNodeBuilder.from_ref(ref).build()
   assert file_node.name == "file.txt"
   assert file_node.path == "/file.txt"
   assert file_node.size == 100
+  assert file_node.mime_type == "text/plain"
   assert file_node.alt_name == None
   assert file_node.alt_path == None
   assert file_node.alt_size == None
@@ -27,14 +28,16 @@ def test_single_file_node():
 
 
 def test_single_file_node_with_alt():
-  ref = FileRef(name="file.webp", path="/file.webp", size=50, alt_name="file.png", alt_path="/file.png", alt_size=100)
+  ref = FileRef(name="file.webp", path="/file.webp", size=50, mime_type="image/webp", alt_name="file.png", alt_path="/file.png", alt_size=100, alt_mime_type="image/png")
   file_node = FileNodeBuilder.from_ref(ref).build()
   assert file_node.name == "file.webp"
   assert file_node.path == "/file.webp"
   assert file_node.size == 50
+  assert file_node.mime_type == "image/webp"
   assert file_node.alt_name == "file.png"
   assert file_node.alt_path == "/file.png"
   assert file_node.alt_size == 100
+  assert file_node.alt_mime_type == "image/png"
   assert file_node.is_file == True
   assert file_node.children == []
 
@@ -45,7 +48,7 @@ def test_multiple_file_node():
     FileRef(name="file.webp", path="pub/images/file.webp", size=50, alt_name="file.png", alt_path="pub/images/file.png", alt_size=100)
   ]
   file_node = FileNodeBuilder.from_name(name=".", path=".").add_files(refs).build()
-  #[print(node.model_dump_json(indent = 2)) for node in file_node.children]
+  # [print(node.model_dump_json(indent = 2)) for node in file_node.children]
   assert file_node.name == "."
   assert file_node.path == "."
   assert file_node.size == None
