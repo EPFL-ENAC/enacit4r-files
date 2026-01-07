@@ -2,8 +2,9 @@
 
 A Python library of files utils that are commonly used in the EPFL ENAC IT infrastructure:
  
- * `LocalFilesService`: a service to upload, get, list, check, copy, move and delete files in a local file storage, with optional encryption support.
- * `S3Service`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage.
+ * `LocalFilesStore`: a service to upload, get, list, check, copy, move and delete files in a local file storage, with optional encryption support.
+ * `S3FilesStore`: a service to upload, get, list, check, copy, move and delete files in a S3 file storage, with optional encryption support.
+ * `S3Service`: a low-level service to upload, get, list, check, copy, move and delete files in a S3 file storage.
  * `FileChecker`: a class for checking the size of uploaded files.
  * `FileNodeBuilder`: a class to represent file references from S3 (`FileRef` class) a tree of file nodes (`FileNode` class) to facilitate the display of a folder in a web UI.
  
@@ -26,7 +27,7 @@ See the Makefile for available commands.
 
 ## Services
 
-The files management API is defined by the FilesService interface, which is implemented by LocalFilesService.
+The files management API is defined by the FilesStore interface, which is implemented by LocalFilesStore and S3FilesStore. Files can be optionally encrypted using Fernet symmetric encryption from the cryptography library.
 
 Available methods:
 
@@ -39,26 +40,60 @@ Available methods:
 * `move_file`: Move a file in file storage.
 * `delete_file`: Delete a file in file storage.
 
-### LocalFilesService
+### LocalFilesStore
 
 Basic usage:
 
 ```python
-from enacit4r_files.services.files import LocalFilesService
+from enacit4r_files.services.files import LocalFilesStore
 from enacit4r_files.models.files import FileNode
-local_service = LocalFilesService("/tmp/enacit4r_files")
+local_service = LocalFilesStore("/tmp/enacit4r_files")
 # do something with local_service
 ```
 
 Encryption usage:
 
 ```python
-from enacit4r_files.services.files import LocalFilesService
+from enacit4r_files.services.files import LocalFilesStore
 from enacit4r_files.models.files import FileNode
 from cryptography.fernet import Fernet
 key = Fernet.generate_key()
-local_service = LocalFilesService("/tmp/enacit4r_files", key=key)
+local_service = LocalFilesStore("/tmp/enacit4r_files", key=key)
 # do something with local_service
+```
+
+### S3FilesStore
+
+Basic usage:
+
+```python
+from enacit4r_files.services.s3_files import S3FilesStore, S3Error
+from enacit4r_files.models.files import FileRef
+s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
+                           config.S3_ACCESS_KEY_ID,
+                           config.S3_SECRET_ACCESS_KEY, 
+                           config.S3_REGION,
+                           config.S3_BUCKET,
+                           config.S3_PATH_PREFIX)
+s3_files_service = S3FilesStore(s3_service)
+# do something with s3_files_service
+```
+
+Encryption usage:
+
+```python
+from enacit4r_files.services.s3_files import S3FilesStore, S3Error
+from enacit4r_files.models.files import FileRef
+from cryptography.fernet import Fernet
+key = Fernet.generate_key()
+s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
+                           config.S3_ACCESS_KEY_ID,
+                           config.S3_SECRET_ACCESS_KEY, 
+                           config.S3_REGION,
+                           config.S3_BUCKET,
+                           config.S3_PATH_PREFIX)
+s3_files_service = S3FilesStore(s3_service, key=key)
+# do something with s3_files_service
 ```
 
 ### S3Service
