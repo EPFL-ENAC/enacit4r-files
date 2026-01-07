@@ -2,12 +2,12 @@ from typing import List, Tuple, Any
 from aiobotocore.session import get_session
 from botocore.config import Config
 from io import BytesIO
-from logging import info, error
 from fastapi.datastructures import UploadFile
 from typing import Tuple
 from PIL import Image
 from enacit4r_files.utils.files import image_mimetypes
 from enacit4r_files.models.files import FileRef
+import logging
 import os
 import urllib.parse
 import mimetypes
@@ -126,7 +126,7 @@ class S3Service(object):
             s3_folder (str, optional): Relative parent folder in S3. Defaults to "".
 
         Returns:
-            dict: S3 upload reference
+            FileRef: S3 upload reference
         """
 
         content_type = self._get_mime_type(file_path)
@@ -134,7 +134,7 @@ class S3Service(object):
             return await self._upload_local_image(parent_path, file_path, s3_folder)
         return await self._upload_local_file(parent_path, file_path, s3_folder)
 
-    async def upload_file(self, upload_file: UploadFile, s3_folder: str = ""):
+    async def upload_file(self, upload_file: UploadFile, s3_folder: str = "") -> FileRef:
         """Upload file to S3 storage
 
         Args:
@@ -142,7 +142,7 @@ class S3Service(object):
             s3_folder (str, optional): Relative parent folder in S3. Defaults to "".
 
         Returns:
-            dict: S3 upload reference
+            FileRef: S3 upload reference
         """
         # if mimetype is image upload image
         if upload_file.content_type in image_mimetypes:
@@ -191,7 +191,7 @@ class S3Service(object):
                 ACL="public-read",
                 Key=destination_key)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                info(
+                logging.info(
                     f"File copied path : {self.s3_endpoint_url}/{self.bucket}/{destination_key}")
                 return destination_key
         return False
@@ -212,7 +212,7 @@ class S3Service(object):
             response = await client.delete_object(
                 Bucket=self.bucket, Key=key)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
-                info(
+                logging.info(
                     f"File deleted path : {self.s3_endpoint_url}/{self.bucket}/{key}")
                 return key
         return False
@@ -237,13 +237,13 @@ class S3Service(object):
                     object_key = content['Key']
                     response = await client.delete_object(Bucket=self.bucket, Key=object_key)
                     if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
-                        info(
+                        logging.info(
                             f"File deleted path : {self.s3_endpoint_url}/{self.bucket}/{object_key}")
 
             # delete object
             response = await client.delete_object(Bucket=self.bucket, Key=folder_key)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
-                info(
+                logging.info(
                     f"File deleted path : {self.s3_endpoint_url}/{self.bucket}/{folder_key}")
                 return folder_key
         return False
@@ -426,7 +426,7 @@ class S3Service(object):
                 alt_info = await self._upload_local_file(
                     parent_path, file_path_alt, s3_folder)
             except Exception as e:
-                error(e)
+                logging.error(e)
 
             # Original file
             orig_info = await self._upload_local_file(
@@ -510,7 +510,7 @@ class S3Service(object):
 
             if resp["ResponseMetadata"][
                     "HTTPStatusCode"] == 200:
-                info(
+                logging.info(
                     f"File uploaded path : {self.s3_endpoint_url}/{bucket}/{key}")
                 resp = await client.head_object(Bucket=bucket, Key=key)
                 object_size = resp.get("ContentLength", 0)

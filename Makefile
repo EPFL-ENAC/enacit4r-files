@@ -2,7 +2,7 @@ venv:
 	uv sync --all-extras
 
 test: venv
-	uv run pytest tests/
+	uv run pytest tests/ -v
 
 build: venv
 	uv build
