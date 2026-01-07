@@ -3,7 +3,6 @@ from aiobotocore.session import get_session
 from botocore.config import Config
 from io import BytesIO
 from fastapi.datastructures import UploadFile
-from typing import Tuple
 from PIL import Image
 from ..utils.files import FileNodeBuilder, image_mimetypes
 from ..models.files import FileRef, FileNode
@@ -14,7 +13,6 @@ import urllib.parse
 import mimetypes
 import tempfile
 from pathlib import Path
-from io import BytesIO
 
 class S3Error(Exception):
     """Exception raised when managing S3 files."""
@@ -574,7 +572,7 @@ class S3FilesStore(FilesStore):
         FileNode: The loaded file node if available, otherwise None.
     """
     json_key = f"{file_key}.meta" if not file_key.endswith(".meta") else file_key
-    json_content = await self.s3_service.get_file(json_key)
+    json_content, _ = await self.s3_service.get_file(json_key)
     if json_content is not False:
       file_node = FileNode.model_validate_json(json_content.decode("utf-8"))
       return file_node
