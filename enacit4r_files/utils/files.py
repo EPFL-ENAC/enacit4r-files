@@ -80,9 +80,13 @@ class FileNodeBuilder:
         Returns:
             FileNodeBuilder: The builder
         """
-        return cls(name = file_ref.name, path = file_ref.path, size = file_ref.size,
+        builder = cls(name = file_ref.name, path = file_ref.path, size = file_ref.size,
                    is_file = True,
                    alt_name = file_ref.alt_name, alt_path = file_ref.alt_path, alt_size = file_ref.alt_size)
+        # Preserve mime_type fields
+        builder.root.mime_type = file_ref.mime_type
+        builder.root.alt_mime_type = file_ref.alt_mime_type
+        return builder
 
     def add_files(self, file_refs: list[FileRef]):
         for file_ref in file_refs:
