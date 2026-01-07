@@ -3,6 +3,7 @@ from aiobotocore.session import get_session
 from botocore.config import Config
 from io import BytesIO
 from fastapi.datastructures import UploadFile
+from starlette.datastructures import Headers
 from PIL import Image
 from ..utils.files import FileNodeBuilder, image_mimetypes
 from ..models.files import FileRef, FileNode
@@ -601,11 +602,12 @@ class S3FilesStore(FilesStore):
     size = len(content)
     encrypted_content = self.encrypt_content(content)
     
-    # Create a new UploadFile with encrypted content
+    # Create a new UploadFile with encrypted content, preserving content type via headers
+    headers = Headers({'content-type': upload_file.content_type or 'application/octet-stream'})
     encrypted_file = UploadFile(
-      filename=upload_file.filename,
       file=BytesIO(encrypted_content),
-      content_type=upload_file.content_type
+      filename=upload_file.filename,
+      headers=headers
     )
     
     # Upload to S3
@@ -614,6 +616,7 @@ class S3FilesStore(FilesStore):
     # Convert FileRef to FileNode
     node = FileNodeBuilder.from_ref(file_ref).build()
     node.size = size  # Use original size before encryption
+    node.mime_type = upload_file.content_type  # Preserve original mime type
     
     # Dump file metadata in S3
     await self._dump_file_node(node, folder)
