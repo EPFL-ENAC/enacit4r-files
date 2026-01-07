@@ -37,15 +37,15 @@ class FilesService:
     pass
 
   async def get_file(self, file_path: str) -> Tuple[Any, Any]:
-      """Extract file content and mimetype from S3 storage
+    """Extract file content and mimetype from storage.
 
-      Args:
-          file_path (str): Path of the file in S3
+    Args:
+        file_path (str): Path of the file in the storage backend.
 
-      Returns:
-          Tuple: File content and mimetype
-      """
-      pass
+    Returns:
+        Tuple: File content and mimetype.
+    """
+    pass
 
   async def list_files(self, folder: str) -> List[FileNode]:
     """List the files in the specified folder.
@@ -129,8 +129,14 @@ class LocalFilesService(FilesService):
     """
     full_path = (self.base_path / path).resolve()
     # Ensure the path is within base_path (security check)
-    if not str(full_path).startswith(str(self.base_path)):
-      raise ValueError(f"Path {path} is outside the base path")
+    if hasattr(full_path, "is_relative_to"):
+      if not full_path.is_relative_to(self.base_path):
+        raise ValueError(f"Path {path} is outside the base path")
+    else:
+      try:
+        full_path.relative_to(self.base_path)
+      except ValueError:
+        raise ValueError(f"Path {path} is outside the base path")
     return full_path
   
   async def upload_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
@@ -160,7 +166,7 @@ class LocalFilesService(FilesService):
     mime_type, _ = mimetypes.guess_type(str(file_path))
     
     # Create relative path for return
-    rel_path = str(file_path.relative_to(self.base_path))
+    rel_path = file_path.relative_to(self.base_path).as_posix()
     
     return FileNode(
       name=file_path.name,
@@ -199,7 +205,7 @@ class LocalFilesService(FilesService):
     mime_type, _ = mimetypes.guess_type(str(destination_path))
     
     # Create relative path for return
-    rel_path = str(destination_path.relative_to(self.base_path))
+    rel_path = destination_path.relative_to(self.base_path).as_posix()
     
     return FileNode(
       name=destination_path.name,
@@ -252,7 +258,7 @@ class LocalFilesService(FilesService):
     file_nodes = []
     
     for item in target_dir.iterdir():
-      rel_path = str(item.relative_to(self.base_path))
+      rel_path = item.relative_to(self.base_path).as_posix()
       
       if item.is_file():
         stat = item.stat()
@@ -286,8 +292,8 @@ class LocalFilesService(FilesService):
     try:
       full_path = self._get_full_path(path)
       return full_path.exists()
-    except (ValueError, Exception):
-      logging.error(f"Error checking path existence for {path}")
+    except (ValueError, Exception) as e:
+      logging.error(f"Error checking path existence for {path}: {e}")
       return False
   
   async def copy_file(self, source_path: str, destination_path: str) -> bool:

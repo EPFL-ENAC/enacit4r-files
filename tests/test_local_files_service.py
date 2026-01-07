@@ -56,7 +56,7 @@ class TestLocalFilesService:
         
         assert isinstance(result, FileNode)
         assert result.name == "test.txt"
-        assert result.path == "uploads/test.txt"
+        assert Path(result.path) == Path("uploads") / "test.txt"
         assert result.size == len(content)
         assert result.is_file is True
         assert result.mime_type == "text/plain"
@@ -88,7 +88,7 @@ class TestLocalFilesService:
         
         assert isinstance(result, FileNode)
         assert result.name == "sample.txt"
-        assert result.path == "docs/sample.txt"
+        assert Path(result.path) == Path("docs") / "sample.txt"
         assert result.size > 0
         assert result.is_file is True
         

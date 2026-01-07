@@ -29,14 +29,14 @@ The files management API is defined by the FilesService interface, which is impl
 
 Available methods:
 
-* `upload_file`: Upload a file provided by FastAPI to S3.
-* `upload_local_file`: Upload a local file to S3.
-* `get_file`: Get a file content from S3.
-* `list_files`: List files from a "folder" in S3.
-* `path_exists`: Check if a file exists in S3.
-* `copy_file`: Copy a file in S3.
-* `move_file`: Move a file in S3.
-* `delete_file`: Delete a file in S3.
+* `upload_file`: Upload a file provided by FastAPI to file storage.
+* `upload_local_file`: Upload a local file to file storage.
+* `get_file`: Get a file content from file storage.
+* `list_files`: List files from a "folder" in file storage.
+* `path_exists`: Check if a file exists in file storage.
+* `copy_file`: Copy a file in file storage.
+* `move_file`: Move a file in file storage.
+* `delete_file`: Delete a file in file storage.
 
 ### LocalFilesService
 
