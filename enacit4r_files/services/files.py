@@ -5,12 +5,17 @@ import logging
 import shutil
 import mimetypes
 from pathlib import Path
+from cryptography.fernet import Fernet
 
 class FilesService:
   """
   This service provides file-related operations. It is an abstraction layer
   over different storage backends such as S3 or local file system.
   """
+  
+  def __init__(self, key: bytes = None):
+    """Initialize the files service."""
+    self.fernet = Fernet(key) if key else None
   
   async def upload_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
     """Upload a file to the specified folder.
@@ -104,17 +109,46 @@ class FilesService:
     """
     pass
   
+  def encrypt_content(self, content: bytes) -> bytes:
+    """Encrypt file content, if encryption is enabled.
+
+    Args:
+        content (bytes): The file content to encrypt.
+    Returns:
+        bytes: The encrypted content.
+    """
+    if not self.fernet:
+      return content
+    encrypted_content = self.fernet.encrypt(content)
+    return encrypted_content
+  
+  def decrypt_content(self, encrypted_content: bytes) -> bytes:
+    """Decrypt file content, if encryption is enabled.
+
+    Args:
+        encrypted_content (bytes): The encrypted file content.
+
+    Returns:
+        bytes: The decrypted content.
+    """
+    if not self.fernet:
+      return encrypted_content
+    decrypted_content = self.fernet.decrypt(encrypted_content)
+    return decrypted_content
+  
 class LocalFilesService(FilesService):
   """
   This service provides file-related operations on the local file system.
   """
   
-  def __init__(self, base_path: str = "."):
+  def __init__(self, base_path: str = ".", key: bytes = None):
     """Initialize the local files service with a base path.
     
     Args:
         base_path (str): The base path for file operations. Defaults to current directory.
+        key (bytes, optional): The encryption key. Defaults to None.
     """
+    super().__init__(key=key)
     self.base_path = Path(base_path).resolve()
     self.base_path.mkdir(parents=True, exist_ok=True)
   
@@ -156,14 +190,19 @@ class LocalFilesService(FilesService):
     # Create the full file path
     file_path = target_dir / upload_file.filename
     
-    # Write the file
+    # Read the file content
     content = await upload_file.read()
-    with open(file_path, "wb") as f:
-      f.write(content)
     
-    # Get file stats
-    stat = file_path.stat()
+    # Get file stats from the original content (before encryption)
+    size = len(content)
     mime_type, _ = mimetypes.guess_type(str(file_path))
+    
+    # Encrypt content if needed
+    content_to_write = self.encrypt_content(content)
+    
+    # Write the file (only once)
+    with open(file_path, "wb") as f:
+      f.write(content_to_write)
     
     # Create relative path for return
     rel_path = file_path.relative_to(self.base_path).as_posix()
@@ -171,7 +210,7 @@ class LocalFilesService(FilesService):
     return FileNode(
       name=file_path.name,
       path=rel_path,
-      size=stat.st_size,
+      size=size,
       mime_type=mime_type,
       is_file=True
     )
@@ -197,12 +236,19 @@ class LocalFilesService(FilesService):
     # Create the full file path
     destination_path = target_dir / source_path.name
     
-    # Copy the file
-    shutil.copy2(source_path, destination_path)
+    # Get file stats from source
+    stat = source_path.stat()
+    mime_type, _ = mimetypes.guess_type(str(source_path))
     
-    # Get file stats
-    stat = destination_path.stat()
-    mime_type, _ = mimetypes.guess_type(str(destination_path))
+    # Copy the file
+    if self.fernet:
+      with open(source_path, "rb") as f:
+        content = f.read()
+      encrypted_content = self.encrypt_content(content)
+      with open(destination_path, "wb") as f:
+        f.write(encrypted_content)
+    else:
+      shutil.copy2(source_path, destination_path)
     
     # Create relative path for return
     rel_path = destination_path.relative_to(self.base_path).as_posix()
@@ -231,7 +277,7 @@ class LocalFilesService(FilesService):
     
     # Read file content
     with open(full_path, "rb") as f:
-      content = f.read()
+      content = self.decrypt_content(f.read())
     
     # Get mimetype
     mime_type, _ = mimetypes.guess_type(str(full_path))
