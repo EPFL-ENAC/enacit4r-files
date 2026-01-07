@@ -362,9 +362,13 @@ class LocalFilesStore(FilesStore):
       
       # List meta files only as part of the associated file
       if item.is_file():
-        # Read associated file node 
-        node = self._read_file_node(item)
-        file_nodes.append(node)
+        # Read associated file node
+        try:
+          node = self._read_file_node(item)
+          if node:
+            file_nodes.append(node)
+        except Exception as e:
+          logging.warning(f"Could not read metadata for {item}: {e}")
       elif item.is_dir():
         file_nodes.append(FileNode(
           name=item.name,
@@ -416,6 +420,7 @@ class LocalFilesStore(FilesStore):
       try:
         node = self._read_file_node(source)
         # Create new node for destination
+        node.name = destination.name
         node.path = destination_path
         self._dump_file_node(node, destination)
       except Exception as e:
@@ -452,6 +457,7 @@ class LocalFilesStore(FilesStore):
       try:
         node = self._read_file_node(source)
         # Update path in node
+        node.name = destination.name
         node.path = destination_path
         self._dump_file_node(node, destination)
         # Remove old metadata file
@@ -507,7 +513,7 @@ class S3FilesStore(FilesStore):
         folder (str): The folder in S3 to dump the file node to.
     """
     json_name = f"{file_node.name}.meta"
-    # Make temp directory and and dump json file
+    # Make temp directory and dump json file
     with tempfile.TemporaryDirectory() as temp_dir:
       temp_path = Path(temp_dir) / json_name
       with open(temp_path, "w") as f:
@@ -754,6 +760,7 @@ class S3FilesStore(FilesStore):
         try:
           node = await self._read_file_node(source_path)
           if node:
+            node.name = os.path.basename(destination_path)
             node.path = destination_path
             await self._dump_file_node(node, os.path.dirname(destination_path))
             # Delete old metadata file

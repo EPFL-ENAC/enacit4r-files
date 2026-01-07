@@ -633,6 +633,8 @@ class TestMetadataFiles:
         )
         
         result = await local_service.upload_file(upload_file, folder="metadata_test")
+        assert result is not None
+        assert isinstance(result, FileNode)
         
         # Verify metadata file exists
         file_path = local_service.base_path / "metadata_test" / "test_meta.txt"
@@ -652,7 +654,7 @@ class TestMetadataFiles:
     @pytest.mark.asyncio
     async def test_upload_local_file_creates_metadata(self, local_service, sample_file):
         """Test that uploading a local file creates metadata JSON file."""
-        result = await local_service.upload_local_file(sample_file, folder="local_meta")
+        await local_service.upload_local_file(sample_file, folder="local_meta")
         
         # Verify metadata file exists
         file_path = local_service.base_path / "local_meta" / "sample.txt"
@@ -716,7 +718,7 @@ class TestMetadataFiles:
         with open(copy_meta, "r") as f:
             copy_metadata = json.load(f)
         
-        assert copy_metadata["name"] == "original.txt"  # Name stays same
+        assert copy_metadata["name"] == "copy.txt"  # Name is updated
         assert copy_metadata["path"] == "copy.txt"  # Path is updated
 
     @pytest.mark.asyncio
@@ -778,7 +780,7 @@ class TestMetadataFiles:
             file=BytesIO(content)
         )
         
-        result = await local_service.upload_file(upload_file, folder="complete")
+        await local_service.upload_file(upload_file, folder="complete")
         
         # Read metadata file
         meta_path = local_service.base_path / "complete" / "complete.json.meta"
@@ -854,14 +856,13 @@ class TestMetadataFiles:
             file=BytesIO(original_content)
         )
         
-        result = await service.upload_file(upload_file)
+        await service.upload_file(upload_file)
         
         # Verify metadata exists
         meta_path = service.base_path / "encrypted.txt.meta"
         assert meta_path.exists()
         
         # Verify metadata contains original size (not encrypted size)
-        import json
         with open(meta_path, "r") as f:
             metadata = json.load(f)
         
@@ -885,7 +886,6 @@ class TestMetadataFiles:
         meta_path = local_service.base_path / "valid_json.txt.meta"
         
         # Attempt to parse JSON - should not raise exception
-        import json
         with open(meta_path, "r") as f:
             metadata = json.load(f)
         
@@ -909,10 +909,10 @@ class TestMetadataFiles:
         dest_meta = local_service.base_path / "subfolder" / "destination.txt.meta"
         assert dest_meta.exists()
         
-        import json
         with open(dest_meta, "r") as f:
             metadata = json.load(f)
         
+        assert metadata["name"] == "destination.txt"
         assert metadata["path"] == "subfolder/destination.txt"
 
     @pytest.mark.asyncio
@@ -936,8 +936,8 @@ class TestMetadataFiles:
         new_meta = local_service.base_path / "subfolder" / "moved.txt.meta"
         assert new_meta.exists()
         
-        import json
         with open(new_meta, "r") as f:
             metadata = json.load(f)
         
+        assert metadata["name"] == "moved.txt"
         assert metadata["path"] == "subfolder/moved.txt"
