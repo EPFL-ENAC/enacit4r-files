@@ -6,8 +6,7 @@ from pathlib import Path
 from io import BytesIO
 from cryptography.fernet import Fernet
 from fastapi.datastructures import UploadFile
-from enacit4r_files.services.files import LocalFilesStore
-from enacit4r_files.models.files import FileNode
+from enacit4r_files.services import LocalFilesStore, FileNode
 
 
 @pytest.fixture

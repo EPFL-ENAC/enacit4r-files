@@ -45,8 +45,7 @@ Available methods:
 Basic usage:
 
 ```python
-from enacit4r_files.services.files import LocalFilesStore
-from enacit4r_files.models.files import FileNode
+from enacit4r_files.services import LocalFilesStore, FileNode
 local_service = LocalFilesStore("/tmp/enacit4r_files")
 # do something with local_service
 ```
@@ -54,8 +53,7 @@ local_service = LocalFilesStore("/tmp/enacit4r_files")
 Encryption usage:
 
 ```python
-from enacit4r_files.services.files import LocalFilesStore
-from enacit4r_files.models.files import FileNode
+from enacit4r_files.services import LocalFilesStore, FileNode
 from cryptography.fernet import Fernet
 key = Fernet.generate_key()
 local_service = LocalFilesStore("/tmp/enacit4r_files", key=key)
@@ -67,9 +65,7 @@ local_service = LocalFilesStore("/tmp/enacit4r_files", key=key)
 Basic usage:
 
 ```python
-from enacit4r_files.services.files import S3FilesStore
-from enacit4r_files.services.s3 import S3Service, S3Error
-from enacit4r_files.models.files import FileRef
+from enacit4r_files.services import S3FilesStore, S3Service, S3Error, FileNode
 s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
                            config.S3_ACCESS_KEY_ID,
                            config.S3_SECRET_ACCESS_KEY, 
@@ -83,9 +79,7 @@ s3_files_service = S3FilesStore(s3_service)
 Encryption usage:
 
 ```python
-from enacit4r_files.services.files import S3FilesStore
-from enacit4r_files.services.s3 import S3Service, S3Error
-from enacit4r_files.models.files import FileRef
+from enacit4r_files.services import S3FilesStore, S3Service, S3Error, FileNode
 from cryptography.fernet import Fernet
 key = Fernet.generate_key()
 s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
@@ -100,9 +94,10 @@ s3_files_service = S3FilesStore(s3_service, key=key)
 
 ### S3Service
 
+This is a low-level service to interact with S3 file storage. It is recommended to use `S3FilesStore` instead, which provides higher-level methods.
+
 ```python
-from enacit4r_files.services.s3 import S3Service, S3Error
-from enacit4r_files.models.files import FileRef
+from enacit4r_files.services import S3Service, S3Error, FileRef
 
 s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
                      config.S3_ACCESS_KEY_ID,
