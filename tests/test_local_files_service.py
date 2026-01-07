@@ -5,7 +5,7 @@ from pathlib import Path
 from io import BytesIO
 from cryptography.fernet import Fernet
 from fastapi.datastructures import UploadFile
-from enacit4r_files.services.files import LocalFilesService
+from enacit4r_files.services.files import LocalFilesStore
 from enacit4r_files.models.files import FileNode
 
 
@@ -20,8 +20,8 @@ def temp_dir():
 
 @pytest.fixture
 def local_service(temp_dir, fernet_key=None):
-    """Create a LocalFilesService instance with a temporary base path."""
-    return LocalFilesService(base_path=temp_dir, key=fernet_key)
+    """Create a LocalFilesStore instance with a temporary base path."""
+    return LocalFilesStore(base_path=temp_dir, key=fernet_key)
 
 
 @pytest.fixture
@@ -36,15 +36,15 @@ def fernet_key():
     """Generate a Fernet key for encryption tests."""
     return Fernet.generate_key()
 
-class TestLocalFilesService:
-    """Test suite for LocalFilesService."""
+class TestLocalFilesStore:
+    """Test suite for LocalFilesStore."""
 
     @pytest.mark.asyncio
     async def test_init_creates_base_path(self):
         """Test that initialization creates the base path."""
         with tempfile.TemporaryDirectory() as temp_dir:
             non_existent = Path(temp_dir) / "new_dir"
-            service = LocalFilesService(base_path=str(non_existent))
+            service = LocalFilesStore(base_path=str(non_existent))
             assert non_existent.exists()
             assert service.base_path == non_existent.resolve()
 
@@ -338,13 +338,13 @@ class TestLocalFilesService:
             assert mime_type == expected_mime
 
 
-class TestLocalFilesServiceWithEncryption:
-    """Test suite for LocalFilesService with Fernet encryption."""
+class TestLocalFilesStoreWithEncryption:
+    """Test suite for LocalFilesStore with Fernet encryption."""
 
     @pytest.mark.asyncio
     async def test_upload_file_with_encryption(self, temp_dir, fernet_key):
         """Test uploading a file with encryption enabled."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         content = b"Secret file content"
         upload_file = UploadFile(
@@ -374,7 +374,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_get_file_with_encryption(self, temp_dir, fernet_key):
         """Test retrieving an encrypted file."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create and encrypt a file
         original_content = b"Secret content"
@@ -393,7 +393,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_upload_local_file_with_encryption(self, temp_dir, fernet_key):
         """Test uploading a local file with encryption."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create a source file
         source_path = Path(temp_dir) / "source.txt"
@@ -418,7 +418,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_round_trip_with_encryption(self, temp_dir, fernet_key):
         """Test uploading and retrieving a file with encryption."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Upload a file
         original_content = b"Round trip test content"
@@ -439,7 +439,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_encryption_with_binary_file(self, temp_dir, fernet_key):
         """Test encryption with binary file content."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create binary content (simulating an image or other binary file)
         binary_content = bytes(range(256))
@@ -457,7 +457,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_encryption_with_large_content(self, temp_dir, fernet_key):
         """Test encryption with larger file content."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create a larger content (1MB)
         large_content = b"X" * (1024 * 1024)
@@ -476,7 +476,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_multiple_files_with_encryption(self, temp_dir, fernet_key):
         """Test uploading and retrieving multiple encrypted files."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Upload multiple files
         files = {
@@ -500,7 +500,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_copy_encrypted_file(self, temp_dir, fernet_key):
         """Test copying an encrypted file."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create an encrypted file
         original_content = b"Copy this encrypted content"
@@ -524,7 +524,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_move_encrypted_file(self, temp_dir, fernet_key):
         """Test moving an encrypted file."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create an encrypted file
         original_content = b"Move this encrypted content"
@@ -548,7 +548,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_list_encrypted_files(self, temp_dir, fernet_key):
         """Test listing encrypted files."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create multiple encrypted files
         for i in range(3):
@@ -568,7 +568,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_encryption_methods_directly(self, fernet_key):
         """Test encrypt and decrypt methods directly."""
-        service = LocalFilesService(base_path=".", key=fernet_key)
+        service = LocalFilesStore(base_path=".", key=fernet_key)
         
         original_content = b"Test encryption methods"
         
@@ -584,7 +584,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_no_encryption_when_key_not_provided(self, temp_dir):
         """Test that files are not encrypted when no key is provided."""
-        service = LocalFilesService(base_path=temp_dir, key=None)
+        service = LocalFilesStore(base_path=temp_dir, key=None)
         
         original_content = b"Unencrypted content"
         upload_file = UploadFile(
@@ -602,7 +602,7 @@ class TestLocalFilesServiceWithEncryption:
     @pytest.mark.asyncio
     async def test_encryption_with_special_characters(self, temp_dir, fernet_key):
         """Test encryption with special characters and unicode."""
-        service = LocalFilesService(base_path=temp_dir, key=fernet_key)
+        service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Content with special characters
         special_content = "Hello 世界! 🌍 Special: @#$%^&*()".encode('utf-8')
