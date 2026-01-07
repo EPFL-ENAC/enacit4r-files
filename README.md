@@ -67,7 +67,8 @@ local_service = LocalFilesStore("/tmp/enacit4r_files", key=key)
 Basic usage:
 
 ```python
-from enacit4r_files.services.s3_files import S3FilesStore, S3Error
+from enacit4r_files.services.files import S3FilesStore
+from enacit4r_files.services.s3 import S3Service, S3Error
 from enacit4r_files.models.files import FileRef
 s3_service = S3Service(config.S3_ENDPOINT_PROTOCOL + config.S3_ENDPOINT_HOSTNAME,
                            config.S3_ACCESS_KEY_ID,
@@ -82,7 +83,8 @@ s3_files_service = S3FilesStore(s3_service)
 Encryption usage:
 
 ```python
-from enacit4r_files.services.s3_files import S3FilesStore, S3Error
+from enacit4r_files.services.files import S3FilesStore
+from enacit4r_files.services.s3 import S3Service, S3Error
 from enacit4r_files.models.files import FileRef
 from cryptography.fernet import Fernet
 key = Fernet.generate_key()
