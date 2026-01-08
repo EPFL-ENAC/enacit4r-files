@@ -62,7 +62,7 @@ class TestS3FilesStore:
 
     @pytest.mark.asyncio
     async def test_write_file(self, s3_files_store, mock_s3_service):
-        """Test uploading a file via UploadFile."""
+        """Test writing a file via UploadFile."""
         content = b"Test file content"
         headers = Headers({'content-type': 'text/plain'})
         upload_file = UploadFile(
@@ -96,7 +96,7 @@ class TestS3FilesStore:
 
     @pytest.mark.asyncio
     async def test_upload_file_to_root(self, s3_files_store, mock_s3_service):
-        """Test uploading a file to the root folder."""
+        """Test writing a file to the root folder."""
         content = b"Root file content"
         upload_file = UploadFile(
             filename="root.txt",
@@ -120,7 +120,7 @@ class TestS3FilesStore:
 
     @pytest.mark.asyncio
     async def test_write_local_file(self, s3_files_store, mock_s3_service, tmp_path):
-        """Test uploading a local file."""
+        """Test writing a local file."""
         # Create a temporary file
         test_file = tmp_path / "sample.txt"
         test_content = b"Sample content"
@@ -144,7 +144,7 @@ class TestS3FilesStore:
 
     @pytest.mark.asyncio
     async def test_upload_local_file_not_found(self, s3_files_store):
-        """Test uploading a non-existent local file."""
+        """Test writing a non-existent local file."""
         with pytest.raises(FileNotFoundError):
             await s3_files_store.write_local_file("/non/existent/file.txt")
 
@@ -322,7 +322,7 @@ class TestS3FilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_upload_file_with_encryption(self, mock_s3_service, fernet_key):
-        """Test uploading a file with encryption enabled."""
+        """Test writing a file with encryption enabled."""
         service = S3FilesStore(s3_service=mock_s3_service, key=fernet_key)
         
         content = b"Secret file content"
@@ -380,7 +380,7 @@ class TestS3FilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_upload_local_file_with_encryption(self, mock_s3_service, fernet_key, tmp_path):
-        """Test uploading a local file with encryption."""
+        """Test writing a local file with encryption."""
         service = S3FilesStore(s3_service=mock_s3_service, key=fernet_key)
         
         # Create a source file
@@ -404,7 +404,7 @@ class TestS3FilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_round_trip_with_encryption(self, mock_s3_service, fernet_key):
-        """Test uploading and retrieving a file with encryption."""
+        """Test writing and retrieving a file with encryption."""
         service = S3FilesStore(s3_service=mock_s3_service, key=fernet_key)
         
         # Upload a file

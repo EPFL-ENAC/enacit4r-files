@@ -50,7 +50,7 @@ class TestLocalFilesStore:
 
     @pytest.mark.asyncio
     async def test_write_file(self, local_service):
-        """Test uploading a file via UploadFile."""
+        """Test writing a file via UploadFile."""
         content = b"Test file content"
         upload_file = UploadFile(
             filename="test.txt",
@@ -73,7 +73,7 @@ class TestLocalFilesStore:
 
     @pytest.mark.asyncio
     async def test_upload_file_to_root(self, local_service):
-        """Test uploading a file to the root folder."""
+        """Test writing a file to the root folder."""
         content = b"Root file content"
         upload_file = UploadFile(
             filename="root.txt",
@@ -88,7 +88,7 @@ class TestLocalFilesStore:
 
     @pytest.mark.asyncio
     async def test_write_local_file(self, local_service, sample_file):
-        """Test uploading a local file."""
+        """Test writing a local file."""
         result = await local_service.write_local_file(sample_file, folder="docs")
         
         assert isinstance(result, FileNode)
@@ -104,7 +104,7 @@ class TestLocalFilesStore:
 
     @pytest.mark.asyncio
     async def test_write_local_file_not_found(self, local_service):
-        """Test uploading a non-existent local file."""
+        """Test writing a non-existent local file."""
         with pytest.raises(FileNotFoundError):
             await local_service.write_local_file("/non/existent/file.txt")
 
@@ -344,7 +344,7 @@ class TestLocalFilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_upload_file_with_encryption(self, temp_dir, fernet_key):
-        """Test uploading a file with encryption enabled."""
+        """Test writing a file with encryption enabled."""
         service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         content = b"Secret file content"
@@ -393,7 +393,7 @@ class TestLocalFilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_write_local_file_with_encryption(self, temp_dir, fernet_key):
-        """Test uploading a local file with encryption."""
+        """Test writing a local file with encryption."""
         service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Create a source file
@@ -418,7 +418,7 @@ class TestLocalFilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_round_trip_with_encryption(self, temp_dir, fernet_key):
-        """Test uploading and retrieving a file with encryption."""
+        """Test writing and retrieving a file with encryption."""
         service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Upload a file
@@ -476,7 +476,7 @@ class TestLocalFilesStoreWithEncryption:
 
     @pytest.mark.asyncio
     async def test_multiple_files_with_encryption(self, temp_dir, fernet_key):
-        """Test uploading and retrieving multiple encrypted files."""
+        """Test writing and retrieving multiple encrypted files."""
         service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
         # Upload multiple files
