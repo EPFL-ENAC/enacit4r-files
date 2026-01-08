@@ -214,6 +214,49 @@ class TestS3FilesStore:
         dirs = [node for node in result if not node.is_file]
         assert len(dirs) == 1
         assert dirs[0].name == "subdir"
+    
+    
+    @pytest.mark.asyncio
+    async def test_list_files_recursively(self, s3_files_store, mock_s3_service):
+        """Test listing files recursively."""
+        mock_keys = [
+            "file1.txt",
+            "file1.txt.meta",
+            "subdir/file2.txt",
+            "subdir/file2.txt.meta",
+            "subdir/nested/file3.txt",
+            "subdir/nested/file3.txt.meta"
+        ]
+        mock_s3_service.list_files.return_value = mock_keys
+        mock_s3_service.to_s3_key.return_value = ""
+        
+        async def mock_read_metadata(key):
+            if "file1.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file1.txt", path="file1.txt", size=100, mime_type="text/plain", is_file=True)
+            elif "file2.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file2.txt", path="subdir/file2.txt", size=200, mime_type="text/plain", is_file=True)
+            elif "file3.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file3.txt", path="subdir/nested/file3.txt", size=300, mime_type="text/plain", is_file=True)
+            return None
+        
+        with patch.object(s3_files_store, '_read_file_node', side_effect=mock_read_metadata):
+            result = await s3_files_store.list_files("", recursive=True)
+        
+        # Should have 3 files and 2 directories
+        assert len(result) == 5
+        
+        files = [node for node in result if node.is_file]
+        assert len(files) == 3
+        file_names = {f.name for f in files}
+        assert "file1.txt" in file_names
+        assert "file2.txt" in file_names
+        assert "file3.txt" in file_names
+        
+        dirs = [node for node in result if not node.is_file]
+        assert len(dirs) == 2
+        dir_names = {d.name for d in dirs}
+        assert "subdir" in dir_names
+        assert "nested" in dir_names
 
     @pytest.mark.asyncio
     async def test_list_files_in_subfolder(self, s3_files_store, mock_s3_service):

@@ -48,11 +48,12 @@ class FilesStore:
     """
     pass
 
-  async def list_files(self, folder: str) -> List[FileNode]:
+  async def list_files(self, folder: str, recursive: bool = False) -> List[FileNode]:
     """List the files in the specified folder.
 
     Args:
         folder (str): The folder to list the files from.
+        recursive (bool, optional): Whether to list files recursively. Defaults to False.
 
     Returns:
         List[FileNode]: The list of file nodes in the folder.

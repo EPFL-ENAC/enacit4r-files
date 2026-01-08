@@ -692,12 +692,13 @@ class S3FilesStore(FilesStore):
     
     return decrypted_content, mime_type
 
-  async def list_files(self, folder: str) -> List[FileNode]:
+  async def list_files(self, folder: str, recursive: bool = False) -> List[FileNode]:
     """List the files in the specified folder.
 
     Args:
         folder (str): The folder to list the files from.
-
+        recursive (bool, optional): Whether to list files recursively. Defaults to False.
+    
     Returns:
         List[FileNode]: The list of file nodes in the folder.
     """
@@ -712,6 +713,8 @@ class S3FilesStore(FilesStore):
     
     # Track unique immediate children
     seen_items = set()
+    # Track directories when recursive
+    seen_dirs = set()
     
     for key in keys:
       # Get relative path from folder
@@ -736,16 +739,50 @@ class S3FilesStore(FilesStore):
               file_nodes.append(node)
           except Exception as e:
             logging.warning(f"Could not read metadata for {key}: {e}")
-      elif len(path_parts) > 1 and path_parts[0]:  # Folder
-        folder_name = path_parts[0]
-        if folder_name not in seen_items:
-          seen_items.add(folder_name)
-          folder_path = f"{folder}/{folder_name}" if folder else folder_name
-          file_nodes.append(FileNode(
-            name=folder_name,
-            path=folder_path,
-            is_file=False
-          ))
+      elif len(path_parts) > 1 and path_parts[0]:  # Nested content
+        if recursive:
+          # Include all nested files recursively
+          item_name = path_parts[-1]
+          if item_name.endswith(".meta"):
+            continue  # Skip metadata files
+          # Check if this is a file (not a folder marker ending with /)
+          if item_name and not key.endswith("/"):
+            if key not in seen_items:
+              seen_items.add(key)
+              # Get file details from associate metadata file
+              try:
+                node = await self._read_file_node(key)
+                if node:
+                  file_nodes.append(node)
+              except Exception as e:
+                logging.warning(f"Could not read metadata for {key}: {e}")
+              
+              # Track all intermediate directories
+              for i in range(len(path_parts) - 1):
+                dir_parts = path_parts[:i+1]
+                dir_name = dir_parts[-1]
+                dir_relative_path = "/".join(dir_parts)
+                if dir_relative_path not in seen_dirs:
+                  seen_dirs.add(dir_relative_path)
+                  dir_full_path = f"{folder}/{dir_relative_path}" if folder else dir_relative_path
+                  folder_node = FileNode(
+                    name=dir_name,
+                    path=dir_full_path,
+                    is_file=False
+                  )
+                  file_nodes.append(folder_node)
+        else:
+          # Non-recursive: only add immediate subfolder
+          folder_name = path_parts[0]
+          if folder_name not in seen_items:
+            seen_items.add(folder_name)
+            folder_path = f"{folder}/{folder_name}" if folder else folder_name
+            folder_node = FileNode(
+              name=folder_name,
+              path=folder_path,
+              is_file=False
+            )
+            file_nodes.append(folder_node)
     
     return file_nodes
 
