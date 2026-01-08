@@ -31,11 +31,11 @@ The files management API is defined by the FilesStore interface, which is implem
 
 Available methods:
 
-* `upload_file`: Upload a file provided by FastAPI to file storage.
-* `upload_local_file`: Upload a local file to file storage.
+* `write_file`: Write an uploaded file provided by FastAPI to file storage.
+* `write_local_file`: Write a local file to file storage.
 * `get_file`: Get a file content from file storage.
 * `list_files`: List files from a "folder" in file storage.
-* `path_exists`: Check if a file exists in file storage.
+* `file_exists`: Check if a file exists in file storage.
 * `copy_file`: Copy a file in file storage.
 * `move_file`: Move a file in file storage.
 * `delete_file`: Delete a file in file storage.

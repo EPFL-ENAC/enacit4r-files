@@ -61,7 +61,7 @@ class TestS3FilesStore:
         assert service.fernet is not None
 
     @pytest.mark.asyncio
-    async def test_upload_file(self, s3_files_store, mock_s3_service):
+    async def test_write_file(self, s3_files_store, mock_s3_service):
         """Test uploading a file via UploadFile."""
         content = b"Test file content"
         headers = Headers({'content-type': 'text/plain'})
@@ -81,7 +81,7 @@ class TestS3FilesStore:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        result = await s3_files_store.upload_file(upload_file, folder="uploads")
+        result = await s3_files_store.write_file(upload_file, folder="uploads")
         
         assert isinstance(result, FileNode)
         assert result.name == "test.txt"
@@ -112,14 +112,14 @@ class TestS3FilesStore:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        result = await s3_files_store.upload_file(upload_file)
+        result = await s3_files_store.write_file(upload_file)
         
         assert result.name == "root.txt"
         assert result.path == "root.txt"
         assert result.is_file is True
 
     @pytest.mark.asyncio
-    async def test_upload_local_file(self, s3_files_store, mock_s3_service, tmp_path):
+    async def test_write_local_file(self, s3_files_store, mock_s3_service, tmp_path):
         """Test uploading a local file."""
         # Create a temporary file
         test_file = tmp_path / "sample.txt"
@@ -134,7 +134,7 @@ class TestS3FilesStore:
         )
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        result = await s3_files_store.upload_local_file(str(test_file), folder="docs")
+        result = await s3_files_store.write_local_file(str(test_file), folder="docs")
         
         assert isinstance(result, FileNode)
         assert result.name == "sample.txt"
@@ -146,7 +146,7 @@ class TestS3FilesStore:
     async def test_upload_local_file_not_found(self, s3_files_store):
         """Test uploading a non-existent local file."""
         with pytest.raises(FileNotFoundError):
-            await s3_files_store.upload_local_file("/non/existent/file.txt")
+            await s3_files_store.write_local_file("/non/existent/file.txt")
 
     @pytest.mark.asyncio
     async def test_get_file(self, s3_files_store, mock_s3_service):
@@ -243,14 +243,14 @@ class TestS3FilesStore:
         assert file_names == {"file1.txt", "file2.txt"}
 
     @pytest.mark.asyncio
-    async def test_path_exists_file(self, s3_files_store, mock_s3_service):
+    async def test_file_exists_file(self, s3_files_store, mock_s3_service):
         """Test checking if a file exists."""
         mock_s3_service.path_exists.return_value = True
         
-        assert await s3_files_store.path_exists("exists.txt") is True
+        assert await s3_files_store.file_exists("exists.txt") is True
         
         mock_s3_service.path_exists.return_value = False
-        assert await s3_files_store.path_exists("notexists.txt") is False
+        assert await s3_files_store.file_exists("notexists.txt") is False
 
     @pytest.mark.asyncio
     async def test_copy_file(self, s3_files_store, mock_s3_service):
@@ -340,7 +340,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        result = await service.upload_file(upload_file, folder="secure")
+        result = await service.write_file(upload_file, folder="secure")
         
         assert isinstance(result, FileNode)
         assert result.name == "encrypted.txt"
@@ -396,7 +396,7 @@ class TestS3FilesStoreWithEncryption:
         )
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        result = await service.upload_local_file(str(source_path), folder="encrypted")
+        result = await service.write_local_file(str(source_path), folder="encrypted")
         
         assert result.name == "source.txt"
         assert result.is_file is True
@@ -423,7 +423,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Get the encrypted content that was uploaded
         call_args = mock_s3_service.upload_file.call_args
@@ -461,7 +461,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Get encrypted content
         call_args = mock_s3_service.upload_file.call_args
@@ -496,7 +496,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Get encrypted content
         call_args = mock_s3_service.upload_file.call_args
@@ -547,7 +547,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Verify content was not encrypted
         call_args = mock_s3_service.upload_file.call_args
@@ -578,7 +578,7 @@ class TestS3FilesStoreWithEncryption:
         mock_s3_service.upload_file.return_value = mock_file_ref
         mock_s3_service.upload_local_file.return_value = mock_file_ref
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Get encrypted content
         call_args = mock_s3_service.upload_file.call_args

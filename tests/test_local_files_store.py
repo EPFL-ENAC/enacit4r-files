@@ -49,7 +49,7 @@ class TestLocalFilesStore:
             assert service.base_path == non_existent.resolve()
 
     @pytest.mark.asyncio
-    async def test_upload_file(self, local_service):
+    async def test_write_file(self, local_service):
         """Test uploading a file via UploadFile."""
         content = b"Test file content"
         upload_file = UploadFile(
@@ -57,7 +57,7 @@ class TestLocalFilesStore:
             file=BytesIO(content)
         )
         
-        result = await local_service.upload_file(upload_file, folder="uploads")
+        result = await local_service.write_file(upload_file, folder="uploads")
         
         assert isinstance(result, FileNode)
         assert result.name == "test.txt"
@@ -80,16 +80,16 @@ class TestLocalFilesStore:
             file=BytesIO(content)
         )
         
-        result = await local_service.upload_file(upload_file)
+        result = await local_service.write_file(upload_file)
         
         assert result.name == "root.txt"
         assert result.path == "root.txt"
         assert result.is_file is True
 
     @pytest.mark.asyncio
-    async def test_upload_local_file(self, local_service, sample_file):
+    async def test_write_local_file(self, local_service, sample_file):
         """Test uploading a local file."""
-        result = await local_service.upload_local_file(sample_file, folder="docs")
+        result = await local_service.write_local_file(sample_file, folder="docs")
         
         assert isinstance(result, FileNode)
         assert result.name == "sample.txt"
@@ -103,10 +103,10 @@ class TestLocalFilesStore:
         assert dest_path.read_text() == "Sample content"
 
     @pytest.mark.asyncio
-    async def test_upload_local_file_not_found(self, local_service):
+    async def test_write_local_file_not_found(self, local_service):
         """Test uploading a non-existent local file."""
         with pytest.raises(FileNotFoundError):
-            await local_service.upload_local_file("/non/existent/file.txt")
+            await local_service.write_local_file("/non/existent/file.txt")
 
     @pytest.mark.asyncio
     async def test_get_file(self, local_service):
@@ -137,12 +137,12 @@ class TestLocalFilesStore:
     async def test_list_files(self, local_service):
         """Test listing files in a directory."""
         # Create some test files using upload method
-        await local_service.upload_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")))
-        await local_service.upload_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")))
+        await local_service.write_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")))
+        await local_service.write_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")))
         
         # Create a subdirectory with a file
         (local_service.base_path / "subdir").mkdir()
-        await local_service.upload_file(UploadFile(filename="file3.txt", file=BytesIO(b"content3")), folder="subdir")
+        await local_service.write_file(UploadFile(filename="file3.txt", file=BytesIO(b"content3")), folder="subdir")
         
         result = await local_service.list_files("")
         
@@ -164,8 +164,8 @@ class TestLocalFilesStore:
     async def test_list_files_in_subfolder(self, local_service):
         """Test listing files in a subfolder."""
         # Create files using upload method
-        await local_service.upload_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")), folder="subdir")
-        await local_service.upload_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")), folder="subdir")
+        await local_service.write_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")), folder="subdir")
+        await local_service.write_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")), folder="subdir")
         
         result = await local_service.list_files("subdir")
         
@@ -181,28 +181,28 @@ class TestLocalFilesStore:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_path_exists_file(self, local_service):
+    async def test_file_exists_file(self, local_service):
         """Test checking if a file exists."""
         # Create a test file
         test_path = local_service.base_path / "exists.txt"
         test_path.write_text("content")
         
-        assert await local_service.path_exists("exists.txt") is True
-        assert await local_service.path_exists("notexists.txt") is False
+        assert await local_service.file_exists("exists.txt") is True
+        assert await local_service.file_exists("notexists.txt") is False
 
     @pytest.mark.asyncio
-    async def test_path_exists_directory(self, local_service):
+    async def test_file_exists_directory(self, local_service):
         """Test checking if a directory exists."""
         test_dir = local_service.base_path / "testdir"
         test_dir.mkdir()
         
-        assert await local_service.path_exists("testdir") is True
+        assert await local_service.file_exists("testdir") is True
 
     @pytest.mark.asyncio
-    async def test_path_exists_invalid_path(self, local_service):
+    async def test_file_exists_invalid_path(self, local_service):
         """Test checking an invalid path."""
         # Path traversal attempt should return False
-        assert await local_service.path_exists("../../etc/passwd") is False
+        assert await local_service.file_exists("../../etc/passwd") is False
 
     @pytest.mark.asyncio
     async def test_copy_file(self, local_service):
@@ -353,7 +353,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(content)
         )
         
-        result = await service.upload_file(upload_file, folder="secure")
+        result = await service.write_file(upload_file, folder="secure")
         
         assert isinstance(result, FileNode)
         assert result.name == "encrypted.txt"
@@ -392,7 +392,7 @@ class TestLocalFilesStoreWithEncryption:
         assert mime_type == "text/plain"
 
     @pytest.mark.asyncio
-    async def test_upload_local_file_with_encryption(self, temp_dir, fernet_key):
+    async def test_write_local_file_with_encryption(self, temp_dir, fernet_key):
         """Test uploading a local file with encryption."""
         service = LocalFilesStore(base_path=temp_dir, key=fernet_key)
         
@@ -401,7 +401,7 @@ class TestLocalFilesStoreWithEncryption:
         original_content = b"Local file content"
         source_path.write_bytes(original_content)
         
-        result = await service.upload_local_file(str(source_path), folder="encrypted")
+        result = await service.write_local_file(str(source_path), folder="encrypted")
         
         assert result.name == "source.txt"
         assert result.is_file is True
@@ -428,7 +428,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(original_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Retrieve the file
         retrieved_content, mime_type = await service.get_file("roundtrip.txt")
@@ -449,7 +449,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(binary_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Retrieve and verify
         retrieved_content, _ = await service.get_file("binary.bin")
@@ -467,7 +467,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(large_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Retrieve and verify
         retrieved_content, _ = await service.get_file("large.txt")
@@ -491,7 +491,7 @@ class TestLocalFilesStoreWithEncryption:
                 filename=filename,
                 file=BytesIO(content)
             )
-            await service.upload_file(upload_file)
+            await service.write_file(upload_file)
         
         # Retrieve and verify each file
         for filename, expected_content in files.items():
@@ -509,7 +509,7 @@ class TestLocalFilesStoreWithEncryption:
             filename="source.txt",
             file=BytesIO(original_content)
         )
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Copy the file
         result = await service.copy_file("source.txt", "copy.txt")
@@ -533,14 +533,14 @@ class TestLocalFilesStoreWithEncryption:
             filename="source.txt",
             file=BytesIO(original_content)
         )
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Move the file
         result = await service.move_file("source.txt", "moved.txt")
         assert result is True
         
         # Verify source doesn't exist
-        assert not await service.path_exists("source.txt")
+        assert not await service.file_exists("source.txt")
         
         # Verify moved file has correct content
         moved_content, _ = await service.get_file("moved.txt")
@@ -557,7 +557,7 @@ class TestLocalFilesStoreWithEncryption:
                 filename=f"file{i}.txt",
                 file=BytesIO(f"Content {i}".encode())
             )
-            await service.upload_file(upload_file)
+            await service.write_file(upload_file)
         
         # List files (now reads from .meta files only, so no need to filter)
         result = await service.list_files("")
@@ -593,7 +593,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(original_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Read raw content from disk - should NOT be encrypted
         file_path = service.base_path / "plain.txt"
@@ -612,7 +612,7 @@ class TestLocalFilesStoreWithEncryption:
             file=BytesIO(special_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Retrieve and verify
         retrieved_content, _ = await service.get_file("special.txt")
@@ -631,7 +631,7 @@ class TestMetadataFiles:
             file=BytesIO(content)
         )
         
-        result = await local_service.upload_file(upload_file, folder="metadata_test")
+        result = await local_service.write_file(upload_file, folder="metadata_test")
         assert result is not None
         assert isinstance(result, FileNode)
         
@@ -651,9 +651,9 @@ class TestMetadataFiles:
         assert metadata["is_file"] is True
 
     @pytest.mark.asyncio
-    async def test_upload_local_file_creates_metadata(self, local_service, sample_file):
+    async def test_write_local_file_creates_metadata(self, local_service, sample_file):
         """Test that uploading a local file creates metadata JSON file."""
-        await local_service.upload_local_file(sample_file, folder="local_meta")
+        await local_service.write_local_file(sample_file, folder="local_meta")
         
         # Verify metadata file exists
         file_path = local_service.base_path / "local_meta" / "sample.txt"
@@ -682,7 +682,7 @@ class TestMetadataFiles:
                 filename=filename,
                 file=BytesIO(b"content")
             )
-            await local_service.upload_file(upload_file)
+            await local_service.write_file(upload_file)
             
             file_path = local_service.base_path / filename
             # Metadata file should be <filename>.<extension>.meta
@@ -701,7 +701,7 @@ class TestMetadataFiles:
             filename="original.txt",
             file=BytesIO(b"Original content")
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Copy the file
         await local_service.copy_file("original.txt", "copy.txt")
@@ -728,7 +728,7 @@ class TestMetadataFiles:
             filename="source.txt",
             file=BytesIO(b"Source content")
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Verify metadata exists before move
         source_meta = local_service.base_path / "source.txt.meta"
@@ -756,7 +756,7 @@ class TestMetadataFiles:
             filename="delete_test.txt",
             file=BytesIO(b"Delete this")
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Verify metadata exists
         meta_path = local_service.base_path / "delete_test.txt.meta"
@@ -779,7 +779,7 @@ class TestMetadataFiles:
             file=BytesIO(content)
         )
         
-        await local_service.upload_file(upload_file, folder="complete")
+        await local_service.write_file(upload_file, folder="complete")
         
         # Read metadata file
         meta_path = local_service.base_path / "complete" / "complete.json.meta"
@@ -809,7 +809,7 @@ class TestMetadataFiles:
             filename="read_meta.txt",
             file=BytesIO(content)
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Read metadata using service method
         file_path = local_service.base_path / "read_meta.txt"
@@ -832,7 +832,7 @@ class TestMetadataFiles:
             file=BytesIO(content)
         )
         
-        await local_service.upload_file(upload_file, folder="sub/dir/path")
+        await local_service.write_file(upload_file, folder="sub/dir/path")
         
         # Verify metadata file in subdirectory
         file_path = local_service.base_path / "sub" / "dir" / "path" / "subdir_file.txt"
@@ -855,7 +855,7 @@ class TestMetadataFiles:
             file=BytesIO(original_content)
         )
         
-        await service.upload_file(upload_file)
+        await service.write_file(upload_file)
         
         # Verify metadata exists
         meta_path = service.base_path / "encrypted.txt.meta"
@@ -880,7 +880,7 @@ class TestMetadataFiles:
             file=BytesIO(b"JSON validity test")
         )
         
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         meta_path = local_service.base_path / "valid_json.txt.meta"
         
@@ -899,7 +899,7 @@ class TestMetadataFiles:
             filename="source.txt",
             file=BytesIO(b"Source")
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Copy to subfolder
         await local_service.copy_file("source.txt", "subfolder/destination.txt")
@@ -922,7 +922,7 @@ class TestMetadataFiles:
             filename="move_source.txt",
             file=BytesIO(b"Move me")
         )
-        await local_service.upload_file(upload_file)
+        await local_service.write_file(upload_file)
         
         # Move to subfolder
         await local_service.move_file("move_source.txt", "subfolder/moved.txt")
