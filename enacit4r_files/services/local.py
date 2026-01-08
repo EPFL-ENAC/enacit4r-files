@@ -79,15 +79,15 @@ class LocalFilesStore(FilesStore):
     if json_path.exists():
       json_path.unlink()
   
-  async def upload_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
-    """Upload a file to the specified folder.
+  async def write_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
+    """Write an uploaded file to the specified folder.
 
     Args:
-        upload_file (UploadFile): The file to upload.
-        folder (str, optional): The folder to upload the file to. Defaults to "".
+        upload_file (UploadFile): The uploaded file to write.
+        folder (str, optional): The folder to write the file to. Defaults to "".
     
     Returns:
-        FileNode: The uploaded file node.
+        FileNode: The written file node.
     """
     # Create the target directory
     target_dir = self._get_full_path(folder)
@@ -126,15 +126,15 @@ class LocalFilesStore(FilesStore):
     
     return node
   
-  async def upload_local_file(self, file_path: str, folder: str = "") -> FileNode:
-    """Upload a local file to the specified folder.
+  async def write_local_file(self, file_path: str, folder: str = "") -> FileNode:
+    """Write a local file to the specified folder.
 
     Args:
         file_path (str): The path to the local file.
-        folder (str, optional): The folder to upload the file to. Defaults to "".
+        folder (str, optional): The folder to write the file to. Defaults to "".
         
     Returns:
-        FileNode: The uploaded file node.
+        FileNode: The written file node.
     """
     source_path = Path(file_path)
     if not source_path.exists():
@@ -243,7 +243,7 @@ class LocalFilesStore(FilesStore):
     
     return file_nodes
   
-  async def path_exists(self, path: str) -> bool:
+  async def file_exists(self, path: str) -> bool:
     """Check a file exists at the specified path.
 
     Args:
