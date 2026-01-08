@@ -200,12 +200,13 @@ class LocalFilesStore(FilesStore):
     
     return content, mime_type
   
-  async def list_files(self, folder: str) -> List[FileNode]:
+  async def list_files(self, folder: str, recursive: bool = False) -> List[FileNode]:
     """List the files in the specified folder.
 
     Args:
         folder (str): The folder to list the files from.
-
+        recursive (bool, optional): Whether to list files recursively. Defaults to False.
+    
     Returns:
         List[FileNode]: The list of file nodes in the folder.
     """
@@ -235,11 +236,17 @@ class LocalFilesStore(FilesStore):
         except Exception as e:
           logging.warning(f"Could not read metadata for {item}: {e}")
       elif item.is_dir():
-        file_nodes.append(FileNode(
+        folder_node = FileNode(
           name=item.name,
           path=rel_path,
           is_file=False
-        ))
+        )
+        if recursive:
+          # Recursively list files in subdirectory
+          subfolder = rel_path
+          sub_files = await self.list_files(subfolder, recursive=True)
+          folder_node.children = sub_files
+        file_nodes.append(folder_node)
     
     return file_nodes
   

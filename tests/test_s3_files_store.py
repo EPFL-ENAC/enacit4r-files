@@ -214,6 +214,85 @@ class TestS3FilesStore:
         dirs = [node for node in result if not node.is_file]
         assert len(dirs) == 1
         assert dirs[0].name == "subdir"
+    
+    
+    @pytest.mark.asyncio
+    async def test_list_files_recursively(self, s3_files_store, mock_s3_service):
+        """Test listing files recursively."""
+        mock_keys = [
+            "file1.txt",
+            "file1.txt.meta",
+            "subdir/file2.txt",
+            "subdir/file2.txt.meta",
+            "subdir/nested/again/file4.txt",
+            "subdir/nested/again/file4.txt.meta",
+            "subdir/nested/file3.txt",
+            "subdir/nested/file3.txt.meta"
+        ]
+        mock_s3_service.list_files.return_value = mock_keys
+        mock_s3_service.to_s3_key.return_value = ""
+        
+        async def mock_read_metadata(key):
+            if "file1.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file1.txt", path="file1.txt", size=100, mime_type="text/plain", is_file=True)
+            elif "file2.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file2.txt", path="subdir/file2.txt", size=200, mime_type="text/plain", is_file=True)
+            elif "file3.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file3.txt", path="subdir/nested/file3.txt", size=300, mime_type="text/plain", is_file=True)
+            elif "file4.txt" in key and not key.endswith(".meta"):
+                return FileNode(name="file4.txt", path="subdir/nested/again/file4.txt", size=400, mime_type="text/plain", is_file=True)
+            return None
+        
+        with patch.object(s3_files_store, '_read_file_node', side_effect=mock_read_metadata):
+            result = await s3_files_store.list_files("", recursive=True)
+        
+        # [print(r.model_dump_json(indent=2)) for r in result]
+        
+        # Should have 2 top-level items: file1.txt and subdir folder
+        assert len(result) == 2
+        
+        # Find the top-level file and directory
+        top_files = [node for node in result if node.is_file]
+        top_dirs = [node for node in result if not node.is_file]
+        
+        assert len(top_files) == 1
+        assert top_files[0].name == "file1.txt"
+        
+        assert len(top_dirs) == 1
+        subdir = top_dirs[0]
+        assert subdir.name == "subdir"
+        assert subdir.path == "subdir"
+        
+        # Verify subdir has 2 children: file2.txt and nested folder
+        assert len(subdir.children) == 2
+        subdir_files = [node for node in subdir.children if node.is_file]
+        subdir_dirs = [node for node in subdir.children if not node.is_file]
+        
+        assert len(subdir_files) == 1
+        assert subdir_files[0].name == "file2.txt"
+        
+        assert len(subdir_dirs) == 1
+        nested = subdir_dirs[0]
+        assert nested.name == "nested"
+        assert nested.path == "subdir/nested"
+        
+        # Verify nested has 2 children: file3.txt and again folder
+        assert len(nested.children) == 2
+        nested_files = [node for node in nested.children if node.is_file]
+        nested_dirs = [node for node in nested.children if not node.is_file]
+        
+        assert len(nested_files) == 1
+        assert nested_files[0].name == "file3.txt"
+        
+        assert len(nested_dirs) == 1
+        again = nested_dirs[0]
+        assert again.name == "again"
+        assert again.path == "subdir/nested/again"
+        
+        # Verify again has 1 child: file4.txt
+        assert len(again.children) == 1
+        assert again.children[0].is_file
+        assert again.children[0].name == "file4.txt"
 
     @pytest.mark.asyncio
     async def test_list_files_in_subfolder(self, s3_files_store, mock_s3_service):

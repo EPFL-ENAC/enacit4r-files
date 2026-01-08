@@ -159,6 +159,39 @@ class TestLocalFilesStore:
         dirs = [node for node in result if not node.is_file]
         assert len(dirs) == 1
         assert dirs[0].name == "subdir"
+    
+    @pytest.mark.asyncio
+    async def test_list_files_recursively(self, local_service):
+        """Test listing files recursively in a directory."""
+        # Create some test files using upload method
+        await local_service.write_file(UploadFile(filename="file1.txt", file=BytesIO(b"content1")))
+        await local_service.write_file(UploadFile(filename="file2.txt", file=BytesIO(b"content2")))
+        
+        # Create a subdirectory with files
+        (local_service.base_path / "subdir").mkdir()
+        await local_service.write_file(UploadFile(filename="file3.txt", file=BytesIO(b"content3")), folder="subdir")
+        await local_service.write_file(UploadFile(filename="file4.txt", file=BytesIO(b"content4")), folder="subdir")
+        
+        result = await local_service.list_files("", recursive=True)
+        
+        assert len(result) == 3  # 2 files + 1 directory
+        
+        # Check files at root
+        root_files = [node for node in result if node.is_file]
+        assert len(root_files) == 2
+        root_file_names = {f.name for f in root_files}
+        assert "file1.txt" in root_file_names
+        assert "file2.txt" in root_file_names
+        
+        # Check subdirectory and its files
+        subdirs = [node for node in result if not node.is_file]
+        assert len(subdirs) == 1
+        subdir_node = subdirs[0]
+        assert subdir_node.name == "subdir"
+        assert len(subdir_node.children) == 2
+        subdir_file_names = {f.name for f in subdir_node.children}
+        assert "file3.txt" in subdir_file_names
+        assert "file4.txt" in subdir_file_names
 
     @pytest.mark.asyncio
     async def test_list_files_in_subfolder(self, local_service):
