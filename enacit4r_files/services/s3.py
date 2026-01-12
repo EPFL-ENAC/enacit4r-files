@@ -133,22 +133,23 @@ class S3Service(object):
                 return False, False
         return False, False
 
-    async def upload_local_file(self, parent_path, file_path: str, s3_folder: str = "") -> FileRef:
+    async def upload_local_file(self, parent_path, file_path: str, s3_folder: str = "", mime_type: str = None) -> FileRef:
         """Upload local file to S3 storage
 
         Args:
             parent_path (str): Parent path of the file
             file_path (str): Path to local file relative to parent path
             s3_folder (str, optional): Relative parent folder in S3. Defaults to "".
+            mime_type (str, optional): MIME type of the file. Defaults to None.
 
         Returns:
             FileRef: S3 upload reference
         """
 
-        content_type = self._get_mime_type(file_path)
+        content_type =  mime_type if mime_type is not None else self._get_mime_type(file_path)
         if content_type in image_mimetypes:
             return await self._upload_local_image(parent_path, file_path, s3_folder)
-        return await self._upload_local_file(parent_path, file_path, s3_folder)
+        return await self._upload_local_file(parent_path, file_path, s3_folder, mime_type=content_type)
 
     async def upload_file(self, upload_file: UploadFile, s3_folder: str = "") -> FileRef:
         """Upload file to S3 storage
@@ -476,13 +477,14 @@ class S3Service(object):
 
         return file_path_webp
 
-    async def _upload_local_file(self, parent_path, file_path: str, s3_folder: str = "") -> FileRef:
+    async def _upload_local_file(self, parent_path, file_path: str, s3_folder: str = "", mime_type: str = None) -> FileRef:
         """Upload file to S3, as is
 
         Args:
             parent_path (str): Parent path of the file
             file_path (str): Path to local file relative to parent path
             s3_folder (str, optional): Relative parent folder in S3. Defaults to "".
+            mime_type (str, optional): MIME type of the file. Defaults to None.
 
         Raises:
             S3Error: When S3 upload fails
@@ -493,7 +495,8 @@ class S3Service(object):
 
         (filename, name) = await self._get_unique_filename(file_path, s3_folder=s3_folder)
         key = f"{self.path_prefix}{filename}"
-        mime_type = self._get_mime_type(file_path)
+        if mime_type is None:
+            mime_type = self._get_mime_type(file_path)
         with open(os.path.join(parent_path, file_path), 'rb') as file:
             uploads3 = await self._upload_fileobj(bucket=self.bucket,
                                                   key=key,
@@ -586,7 +589,7 @@ class S3FilesStore(FilesStore):
       # Upload to S3
       s3_folder = folder.rstrip("/") if folder else ""
       with open(temp_path, "rb") as f:
-        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder)
+        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder, mime_type = "application/json")
   
   async def _read_file_node(self, file_key: str) -> FileNode:
     """Read a FileNode from a JSON file in S3.
