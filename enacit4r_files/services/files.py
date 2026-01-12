@@ -174,7 +174,7 @@ class FilesStore:
     # Check for None input
     if path is None:
         raise ValueError("Invalid path: path cannot be None")
-    # Remove leading slashes
+    # Remove leading/trailing slashes
     path = path.strip("/")
     # Remove \n and \r characters
     path = path.replace("\n", "").replace("\r", "")
