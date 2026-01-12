@@ -597,6 +597,7 @@ class S3FilesStore(FilesStore):
     Returns:
         FileNode: The uploaded file node.
     """
+    folder = self.sanitize_path(folder)
     # Read and optionally encrypt the content
     content = await upload_file.read()
     size = len(content)
@@ -605,7 +606,7 @@ class S3FilesStore(FilesStore):
     # Create a new UploadFile with encrypted content, preserving content type via headers
     headers = Headers({'content-type': upload_file.content_type or 'application/octet-stream'})
     encrypted_file = UploadFile(
-      filename=upload_file.filename,
+      filename=self.sanitize_file_name(upload_file.filename),
       file=BytesIO(encrypted_content),
       headers=headers
     )
@@ -632,6 +633,7 @@ class S3FilesStore(FilesStore):
     Returns:
         FileNode: The written file node.
     """
+    folder = self.sanitize_path(folder)
     source_path = Path(file_path)
     if not source_path.exists():
       raise FileNotFoundError(f"Source file {file_path} does not exist")
@@ -702,7 +704,7 @@ class S3FilesStore(FilesStore):
     Returns:
         List[FileNode]: The list of file nodes in the folder.
     """
-    
+    folder = self.sanitize_path(folder)
     # List all keys in the folder
     keys = await self.s3_service.list_files(folder)
     
@@ -813,6 +815,7 @@ class S3FilesStore(FilesStore):
     Returns:
         bool: True if the path exists, False otherwise.
     """
+    path = self.sanitize_path(path)
     return await self.s3_service.path_exists(path)
 
   async def copy_file(self, source_path: str, destination_path: str) -> bool:
@@ -826,6 +829,8 @@ class S3FilesStore(FilesStore):
         bool: True if the copy was successful, False otherwise.
     """
     try:
+      source_path = self.sanitize_path(source_path)
+      destination_path = self.sanitize_path(destination_path)
       result = await self.s3_service.copy_file(source_path, destination_path)
       if result is not False:
         # Copy metadata file as well
@@ -852,6 +857,8 @@ class S3FilesStore(FilesStore):
         bool: True if the move was successful, False otherwise.
     """
     try:
+      source_path = self.sanitize_path(source_path)
+      destination_path = self.sanitize_path(destination_path)
       result = await self.s3_service.move_file(source_path, destination_path)
       if result is not False:
         # Move metadata file as well
@@ -879,6 +886,7 @@ class S3FilesStore(FilesStore):
     Returns:
         bool: True if the deletion was successful, False otherwise.
     """
+    file_path = self.sanitize_path(file_path)
     try:
       result = await self.s3_service.delete_file(file_path)
       if result is not False:

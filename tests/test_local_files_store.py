@@ -350,7 +350,7 @@ class TestLocalFilesStore:
     @pytest.mark.asyncio
     async def test_security_path_traversal(self, local_service):
         """Test that path traversal attempts are blocked."""
-        with pytest.raises(ValueError, match="outside the base path"):
+        with pytest.raises(ValueError, match="Invalid path: '..' not allowed"):
             local_service._get_full_path("../../etc/passwd")
 
     @pytest.mark.asyncio
