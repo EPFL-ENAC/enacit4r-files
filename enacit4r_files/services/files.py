@@ -14,6 +14,7 @@ class FilesStore:
     """Initialize the files service."""
     self.fernet = Fernet(key) if key else None
     self.sanitization_regex = re.compile(r'^[a-zA-Z0-9/ _.()\[\]:\-]+$')
+    self.meta_extension = ".meta"
   
   async def write_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
     """Write an uploaded file to the specified folder.

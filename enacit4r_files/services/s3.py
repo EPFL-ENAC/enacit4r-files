@@ -579,7 +579,7 @@ class S3FilesStore(FilesStore):
         file_node (FileNode): The file node to dump.
         folder (str): The folder in S3 to dump the file node to.
     """
-    json_name = f"{file_node.name}.meta"
+    json_name = f"{file_node.name}{self.meta_extension}"
     # Make temp directory and dump json file
     with tempfile.TemporaryDirectory() as temp_dir:
       temp_path = Path(temp_dir) / json_name
@@ -588,7 +588,7 @@ class S3FilesStore(FilesStore):
       # Upload to S3
       s3_folder = folder.rstrip("/") if folder else ""
       with open(temp_path, "rb") as f:
-        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder, mime_type = "application/json")
+        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder)
   
   async def _read_file_node(self, file_key: str) -> FileNode:
     """Read a FileNode from a JSON file in S3.
@@ -597,7 +597,7 @@ class S3FilesStore(FilesStore):
     Returns:
         FileNode: The loaded file node if available, otherwise None.
     """
-    json_key = f"{file_key}.meta" if not file_key.endswith(".meta") else file_key
+    json_key = f"{file_key}{self.meta_extension}" if not file_key.endswith(self.meta_extension) else file_key
     json_content, _ = await self.s3_service.get_file(json_key)
     if json_content is not False:
       file_node = FileNode.model_validate_json(json_content.decode("utf-8"))
@@ -609,7 +609,7 @@ class S3FilesStore(FilesStore):
     Args:
         file_key (str): The S3 key of the reference file.
     """
-    json_key = f"{file_key}.meta" if not file_key.endswith(".meta") else file_key
+    json_key = f"{file_key}{self.meta_extension}" if not file_key.endswith(self.meta_extension) else file_key
     await self.s3_service.delete_file(json_key)
   
   async def write_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
@@ -755,7 +755,7 @@ class S3FilesStore(FilesStore):
       
       if len(path_parts) == 1 and path_parts[0]:  # Direct file
         item_name = path_parts[0]
-        if item_name.endswith(".meta"):
+        if item_name.endswith(self.meta_extension):
           continue  # Skip metadata files
         if item_name not in seen_items:
           seen_items.add(item_name)
@@ -770,7 +770,7 @@ class S3FilesStore(FilesStore):
         if recursive:
           # Include all nested files recursively
           item_name = path_parts[-1]
-          if item_name.endswith(".meta"):
+          if item_name.endswith(self.meta_extension):
             continue  # Skip metadata files
           # Check if this is a file (not a folder marker ending with /)
           if item_name and not key.endswith("/"):

@@ -52,7 +52,7 @@ class LocalFilesStore(FilesStore):
         file_node (FileNode): The file node to dump.
         file_path (Path): The path to the reference file.
     """
-    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    json_path = file_path.with_suffix(file_path.suffix + self.meta_extension)
     with open(json_path, "w") as f:
       f.write(file_node.model_dump_json())
   
@@ -64,7 +64,7 @@ class LocalFilesStore(FilesStore):
     Returns:
         FileNode: The loaded file node.
     """
-    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    json_path = file_path.with_suffix(file_path.suffix + self.meta_extension)
     with open(json_path, "r") as f:
       json_content = f.read()
     file_node = FileNode.model_validate_json(json_content)
@@ -76,7 +76,7 @@ class LocalFilesStore(FilesStore):
     Args:
         file_path (Path): The path to the reference file.
     """
-    json_path = file_path.with_suffix(file_path.suffix + ".meta")
+    json_path = file_path.with_suffix(file_path.suffix + self.meta_extension)
     if json_path.exists():
       json_path.unlink()
   
@@ -223,7 +223,7 @@ class LocalFilesStore(FilesStore):
     file_nodes = []
     
     for item in target_dir.iterdir():
-      if item.suffix == ".meta":
+      if item.suffix == self.meta_extension:
         continue  # Skip metadata files
       
       rel_path = item.relative_to(self.base_path).as_posix()

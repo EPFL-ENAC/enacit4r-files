@@ -183,9 +183,9 @@ class TestS3FilesStore:
         # Mock S3 keys with metadata files
         mock_keys = [
             "file1.txt",
-            "file1.txt.meta",
+            f"file1.txt{s3_files_store.meta_extension}",
             "file2.txt",
-            "file2.txt.meta",
+            f"file2.txt{s3_files_store.meta_extension}",
             "subdir/file3.txt"
         ]
         mock_s3_service.list_files.return_value = mock_keys
@@ -193,9 +193,9 @@ class TestS3FilesStore:
         
         # Mock metadata reading
         async def mock_read_metadata(key):
-            if "file1.txt" in key and not key.endswith(".meta"):
+            if "file1.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file1.txt", path="file1.txt", size=100, mime_type="text/plain", is_file=True)
-            elif "file2.txt" in key and not key.endswith(".meta"):
+            elif "file2.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file2.txt", path="file2.txt", size=200, mime_type="text/plain", is_file=True)
             return None
         
@@ -221,25 +221,25 @@ class TestS3FilesStore:
         """Test listing files recursively."""
         mock_keys = [
             "file1.txt",
-            "file1.txt.meta",
+            f"file1.txt{s3_files_store.meta_extension}",
             "subdir/file2.txt",
-            "subdir/file2.txt.meta",
+            f"subdir/file2.txt{s3_files_store.meta_extension}",
             "subdir/nested/again/file4.txt",
-            "subdir/nested/again/file4.txt.meta",
+            f"subdir/nested/again/file4.txt{s3_files_store.meta_extension}",
             "subdir/nested/file3.txt",
-            "subdir/nested/file3.txt.meta"
+            f"subdir/nested/file3.txt{s3_files_store.meta_extension}"
         ]
         mock_s3_service.list_files.return_value = mock_keys
         mock_s3_service.to_s3_key.return_value = ""
         
         async def mock_read_metadata(key):
-            if "file1.txt" in key and not key.endswith(".meta"):
+            if "file1.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file1.txt", path="file1.txt", size=100, mime_type="text/plain", is_file=True)
-            elif "file2.txt" in key and not key.endswith(".meta"):
+            elif "file2.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file2.txt", path="subdir/file2.txt", size=200, mime_type="text/plain", is_file=True)
-            elif "file3.txt" in key and not key.endswith(".meta"):
+            elif "file3.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file3.txt", path="subdir/nested/file3.txt", size=300, mime_type="text/plain", is_file=True)
-            elif "file4.txt" in key and not key.endswith(".meta"):
+            elif "file4.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file4.txt", path="subdir/nested/again/file4.txt", size=400, mime_type="text/plain", is_file=True)
             return None
         
@@ -299,17 +299,17 @@ class TestS3FilesStore:
         """Test listing files in a subfolder."""
         mock_keys = [
             "subdir/file1.txt",
-            "subdir/file1.txt.meta",
+            f"subdir/file1.txt{s3_files_store.meta_extension}",
             "subdir/file2.txt",
-            "subdir/file2.txt.meta"
+            f"subdir/file2.txt{s3_files_store.meta_extension}"
         ]
         mock_s3_service.list_files.return_value = mock_keys
         mock_s3_service.to_s3_key.return_value = "subdir/"
         
         async def mock_read_metadata(key):
-            if "file1.txt" in key and not key.endswith(".meta"):
+            if "file1.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file1.txt", path="subdir/file1.txt", size=100, mime_type="text/plain", is_file=True)
-            elif "file2.txt" in key and not key.endswith(".meta"):
+            elif "file2.txt" in key and not key.endswith(s3_files_store.meta_extension):
                 return FileNode(name="file2.txt", path="subdir/file2.txt", size=200, mime_type="text/plain", is_file=True)
             return None
         
@@ -687,8 +687,8 @@ class TestS3MetadataOperations:
         )
         
         mock_s3_service.upload_local_file.return_value = FileRef(
-            name="test.txt.meta",
-            path="folder/test.txt.meta",
+            name=f"test.txt{s3_files_store.meta_extension}",
+            path=f"folder/test.txt{s3_files_store.meta_extension}",
             size=200,
             mime_type="application/json"
         )
@@ -732,12 +732,11 @@ class TestS3MetadataOperations:
     @pytest.mark.asyncio
     async def test_delete_file_node(self, s3_files_store, mock_s3_service):
         """Test deleting FileNode metadata from S3."""
-        mock_s3_service.delete_file.return_value = "test.txt.meta"
+        mock_s3_service.delete_file.return_value = f"test.txt{s3_files_store.meta_extension}"
         
         await s3_files_store._delete_file_node("test.txt")
         
-        mock_s3_service.delete_file.assert_called_once_with("test.txt.meta")
-
+        mock_s3_service.delete_file.assert_called_once_with(f"test.txt{s3_files_store.meta_extension}")
     @pytest.mark.asyncio
     async def test_metadata_preserved_on_copy(self, s3_files_store, mock_s3_service):
         """Test that metadata is preserved when copying a file."""

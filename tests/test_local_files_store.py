@@ -670,7 +670,7 @@ class TestMetadataFiles:
         
         # Verify metadata file exists
         file_path = local_service.base_path / "metadata_test" / "test_meta.txt"
-        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        meta_path = file_path.with_suffix(file_path.suffix + local_service.meta_extension)
         assert meta_path.exists()
         
         # Verify metadata content
@@ -690,7 +690,7 @@ class TestMetadataFiles:
         
         # Verify metadata file exists
         file_path = local_service.base_path / "local_meta" / "sample.txt"
-        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        meta_path = file_path.with_suffix(file_path.suffix + local_service.meta_extension)
         assert meta_path.exists()
         
         # Verify metadata content
@@ -720,9 +720,9 @@ class TestMetadataFiles:
             file_path = local_service.base_path / filename
             # Metadata file should be <filename>.<extension>.meta
             if "." in filename:
-                expected_meta = file_path.parent / (filename + ".meta")
+                expected_meta = file_path.parent / (filename + local_service.meta_extension)
             else:
-                expected_meta = file_path.with_suffix(".meta")
+                expected_meta = file_path.with_suffix(local_service.meta_extension)
             
             assert expected_meta.exists(), f"Metadata file not found for {filename}"
 
@@ -740,8 +740,8 @@ class TestMetadataFiles:
         await local_service.copy_file("original.txt", "copy.txt")
         
         # Verify both metadata files exist
-        original_meta = local_service.base_path / "original.txt.meta"
-        copy_meta = local_service.base_path / "copy.txt.meta"
+        original_meta = local_service.base_path / ("original.txt" + local_service.meta_extension)
+        copy_meta = local_service.base_path / ("copy.txt" + local_service.meta_extension)
         
         assert original_meta.exists()
         assert copy_meta.exists()
@@ -764,7 +764,7 @@ class TestMetadataFiles:
         await local_service.write_file(upload_file)
         
         # Verify metadata exists before move
-        source_meta = local_service.base_path / "source.txt.meta"
+        source_meta = local_service.base_path / ("source.txt" + local_service.meta_extension)
         assert source_meta.exists()
         
         # Move the file
@@ -772,7 +772,7 @@ class TestMetadataFiles:
         
         # Verify old metadata is gone and new exists
         assert not source_meta.exists()
-        dest_meta = local_service.base_path / "destination.txt.meta"
+        dest_meta = local_service.base_path / ("destination.txt" + local_service.meta_extension)
         assert dest_meta.exists()
         
         # Verify metadata has updated path
@@ -792,7 +792,7 @@ class TestMetadataFiles:
         await local_service.write_file(upload_file)
         
         # Verify metadata exists
-        meta_path = local_service.base_path / "delete_test.txt.meta"
+        meta_path = local_service.base_path / ("delete_test.txt" + local_service.meta_extension)
         assert meta_path.exists()
         
         # Delete the file
@@ -815,7 +815,7 @@ class TestMetadataFiles:
         await local_service.write_file(upload_file, folder="complete")
         
         # Read metadata file
-        meta_path = local_service.base_path / "complete" / "complete.json.meta"
+        meta_path = local_service.base_path / "complete" / ("complete.json" + local_service.meta_extension)
         with open(meta_path, "r") as f:
             metadata = json.load(f)
         
@@ -869,7 +869,7 @@ class TestMetadataFiles:
         
         # Verify metadata file in subdirectory
         file_path = local_service.base_path / "sub" / "dir" / "path" / "subdir_file.txt"
-        meta_path = file_path.with_suffix(file_path.suffix + ".meta")
+        meta_path = file_path.with_suffix(file_path.suffix + local_service.meta_extension)
         assert meta_path.exists()
         
         with open(meta_path, "r") as f:
@@ -891,7 +891,7 @@ class TestMetadataFiles:
         await service.write_file(upload_file)
         
         # Verify metadata exists
-        meta_path = service.base_path / "encrypted.txt.meta"
+        meta_path = service.base_path / ("encrypted.txt" + service.meta_extension)
         assert meta_path.exists()
         
         # Verify metadata contains original size (not encrypted size)
@@ -915,7 +915,7 @@ class TestMetadataFiles:
         
         await local_service.write_file(upload_file)
         
-        meta_path = local_service.base_path / "valid_json.txt.meta"
+        meta_path = local_service.base_path / ("valid_json.txt" + local_service.meta_extension)
         
         # Attempt to parse JSON - should not raise exception
         with open(meta_path, "r") as f:
@@ -938,7 +938,7 @@ class TestMetadataFiles:
         await local_service.copy_file("source.txt", "subfolder/destination.txt")
         
         # Verify destination metadata has correct path
-        dest_meta = local_service.base_path / "subfolder" / "destination.txt.meta"
+        dest_meta = local_service.base_path / "subfolder" / ("destination.txt" + local_service.meta_extension)
         assert dest_meta.exists()
         
         with open(dest_meta, "r") as f:
@@ -961,11 +961,11 @@ class TestMetadataFiles:
         await local_service.move_file("move_source.txt", "subfolder/moved.txt")
         
         # Verify old metadata is gone
-        old_meta = local_service.base_path / "move_source.txt.meta"
+        old_meta = local_service.base_path / ("move_source.txt" + local_service.meta_extension)
         assert not old_meta.exists()
         
         # Verify new metadata has correct path
-        new_meta = local_service.base_path / "subfolder" / "moved.txt.meta"
+        new_meta = local_service.base_path / "subfolder" / ("moved.txt" + local_service.meta_extension)
         assert new_meta.exists()
         
         with open(new_meta, "r") as f:
