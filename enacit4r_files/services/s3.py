@@ -31,18 +31,16 @@ class S3Service(object):
             region (str): The AWS region where the S3 bucket is located.
             bucket (str): The name of the S3 bucket.
             path_prefix (str): The prefix path within the S3 bucket.
-            with_checksums (bool, optional): Whether to enable flexible checksums. Defaults to False.
+            with_checksums (bool, optional): Whether to enable checksum handling. When False (default), 
+            checksum use is disabled for compatibility with S3-compatible services that do not support checksums.
         """
         self.s3_endpoint_url = s3_endpoint_url
         self.s3_access_key_id = s3_access_key_id
         self.s3_secret_access_key = s3_secret_access_key
         self.region = region
-        self.path_prefix = path_prefix
+        self.path_prefix = path_prefix if path_prefix.endswith("/") else f"{path_prefix}/"
         self.bucket = bucket
         self.with_checksums = with_checksums
-        if not self.with_checksums:
-            os.environ['AWS_REQUEST_CHECKSUM_CALCULATION'] = 'WHEN_REQUIRED'
-            os.environ['AWS_REQUEST_CHECKSUM_VALIDATION'] = 'WHEN_REQUIRED'
 
     def to_s3_path(self, file_path: str) -> str:
         """Ensure that file path starts with path prefix.
@@ -283,7 +281,6 @@ class S3Service(object):
         }
         if not self.with_checksums:
             settings['checksum_mode'] = 'DISABLED'
-            settings['flexible_checksums'] = True
             settings['request_checksum_calculation'] = 'when_required'
             settings['response_checksum_validation'] = 'when_required'
         config = Config(
@@ -534,7 +531,7 @@ class S3Service(object):
                 'ACL': 'public-read',
                 'ContentType': mimetype
             }
-            
+
             resp = await client.put_object(**put_kwargs)
 
             if resp["ResponseMetadata"][
