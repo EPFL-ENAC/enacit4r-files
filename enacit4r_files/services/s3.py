@@ -606,7 +606,7 @@ class S3FilesStore(FilesStore):
     # Create a new UploadFile with encrypted content, preserving content type via headers
     headers = Headers({'content-type': upload_file.content_type or 'application/octet-stream'})
     encrypted_file = UploadFile(
-      filename=self.sanitize_path(upload_file.filename),
+      filename=self.sanitize_file_name(upload_file.filename),
       file=BytesIO(encrypted_content),
       headers=headers
     )

@@ -95,7 +95,8 @@ class LocalFilesStore(FilesStore):
     target_dir.mkdir(parents=True, exist_ok=True)
     
     # Create the full file path
-    file_path = target_dir / upload_file.filename
+    file_name = self.sanitize_file_name(upload_file.filename)
+    file_path = target_dir / file_name
     
     # Read the file content
     content = await upload_file.read()
