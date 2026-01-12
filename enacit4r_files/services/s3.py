@@ -283,6 +283,8 @@ class S3Service(object):
         if not self.with_checksums:
             # Completely disable checksums for S3-compatible services that don't support them
             settings['checksum_mode'] = 'DISABLED'
+            settings['request_checksum_calculation'] = 'when_required'
+            settings['response_checksum_validation'] = 'when_required'
         config = Config(
             s3=settings,
             signature_version='s3v4',
