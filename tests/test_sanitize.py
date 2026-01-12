@@ -131,28 +131,10 @@ class TestSanitizePath:
             FilesStore().sanitize_path("folder/*.txt")
         assert "Invalid path: contains forbidden characters" in str(exc_info.value)
 
-    def test_forbidden_character_question_mark_raises_error(self):
-        """Test that paths with question mark raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_path("folder/file?.txt")
-        assert "Invalid path: contains forbidden characters" in str(exc_info.value)
-
     def test_forbidden_character_pipe_raises_error(self):
         """Test that paths with pipe character raise ValueError."""
         with pytest.raises(ValueError) as exc_info:
             FilesStore().sanitize_path("folder/file|.txt")
-        assert "Invalid path: contains forbidden characters" in str(exc_info.value)
-
-    def test_forbidden_character_less_than_raises_error(self):
-        """Test that paths with less-than character raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_path("folder/file<.txt")
-        assert "Invalid path: contains forbidden characters" in str(exc_info.value)
-
-    def test_forbidden_character_greater_than_raises_error(self):
-        """Test that paths with greater-than character raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_path("folder/file>.txt")
         assert "Invalid path: contains forbidden characters" in str(exc_info.value)
 
     def test_forbidden_character_quotes_raises_error(self):
@@ -187,6 +169,16 @@ class TestSanitizePath:
         """Test sanitization of alphanumeric only path."""
         result = FilesStore().sanitize_path("abc123/def456")
         assert result == "abc123/def456"
+
+    def test_path_with_french_accents(self):
+        """Test sanitization of path with French accented characters."""
+        result = FilesStore().sanitize_path("dossier/fichier_été.txt")
+        assert result == "dossier/fichier_été.txt"
+
+    def test_path_with_french_cedilla(self):
+        """Test sanitization of path with French characters."""
+        result = FilesStore().sanitize_path("français/leçon_d'été_par_cœur.txt")
+        assert result == "français/leçon_d'été_par_cœur.txt"
 
 
 class TestSanitizeFileName:
@@ -286,28 +278,10 @@ class TestSanitizeFileName:
             FilesStore().sanitize_file_name("file*.txt")
         assert "Invalid file name: contains forbidden characters" in str(exc_info.value)
 
-    def test_forbidden_character_question_mark_in_file_name_raises_error(self):
-        """Test that file names with question mark raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_file_name("file?.txt")
-        assert "Invalid file name: contains forbidden characters" in str(exc_info.value)
-
     def test_forbidden_character_pipe_in_file_name_raises_error(self):
         """Test that file names with pipe character raise ValueError."""
         with pytest.raises(ValueError) as exc_info:
             FilesStore().sanitize_file_name("file|.txt")
-        assert "Invalid file name: contains forbidden characters" in str(exc_info.value)
-
-    def test_forbidden_character_less_than_in_file_name_raises_error(self):
-        """Test that file names with less-than character raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_file_name("file<.txt")
-        assert "Invalid file name: contains forbidden characters" in str(exc_info.value)
-
-    def test_forbidden_character_greater_than_in_file_name_raises_error(self):
-        """Test that file names with greater-than character raise ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            FilesStore().sanitize_file_name("file>.txt")
         assert "Invalid file name: contains forbidden characters" in str(exc_info.value)
 
     def test_forbidden_character_quotes_in_file_name_raises_error(self):
@@ -326,3 +300,8 @@ class TestSanitizeFileName:
         """Test sanitization of empty file name."""
         result = FilesStore().sanitize_file_name("")
         assert result == ""
+
+    def test_file_name_with_french_accents(self):
+        """Test sanitization of file name with French accented characters."""
+        result = FilesStore().sanitize_file_name("fichier_été.txt")
+        assert result == "fichier_été.txt"

@@ -13,7 +13,7 @@ class FilesStore:
   def __init__(self, key: bytes = None):
     """Initialize the files service."""
     self.fernet = Fernet(key) if key else None
-    self.sanitization_regex = re.compile(r'^[a-zA-Z0-9/ _.()\[\]:\-]+$')
+    self.sanitization_regex = re.compile(r'^[\w/ .()\[\]:\-\'<>?]+$')
     self.meta_extension = ".meta.json"
   
   async def write_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
