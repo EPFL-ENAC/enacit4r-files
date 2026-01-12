@@ -21,13 +21,28 @@ class S3Error(Exception):
 
 class S3Service(object):
 
-    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str):
+    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False):
+        """Initiate the S3 service.
+
+        Args:
+            s3_endpoint_url (str): The endpoint URL of the S3 service.
+            s3_access_key_id (str): The access key ID for S3 authentication.
+            s3_secret_access_key (str): The secret access key for S3 authentication.
+            region (str): The AWS region where the S3 bucket is located.
+            bucket (str): The name of the S3 bucket.
+            path_prefix (str): The prefix path within the S3 bucket.
+            with_checksums (bool, optional): Whether to enable flexible checksums. Defaults to False.
+        """
         self.s3_endpoint_url = s3_endpoint_url
         self.s3_access_key_id = s3_access_key_id
         self.s3_secret_access_key = s3_secret_access_key
         self.region = region
         self.path_prefix = path_prefix
         self.bucket = bucket
+        self.with_checksums = with_checksums
+        if not self.with_checksums:
+            os.environ['AWS_REQUEST_CHECKSUM_CALCULATION'] = 'WHEN_REQUIRED'
+            os.environ['AWS_REQUEST_CHECKSUM_VALIDATION'] = 'WHEN_REQUIRED'
 
     def to_s3_path(self, file_path: str) -> str:
         """Ensure that file path starts with path prefix.
@@ -36,7 +51,7 @@ class S3Service(object):
             file_path (str): The path to the file in the S3 bucket
 
         Returns:
-            _type_: The full file path.
+            str: The full file path.
         """
         if not file_path.startswith(self.path_prefix):
             return f"{self.path_prefix}{file_path}"
@@ -49,7 +64,7 @@ class S3Service(object):
             file_path (str): The path to the file in the S3 bucket
 
         Returns:
-            _type_: The full file path, ready to be used in S3 queries.
+            str: The full file path, ready to be used in S3 queries.
         """
         return urllib.parse.unquote(self.to_s3_path(file_path))
 
@@ -103,7 +118,7 @@ class S3Service(object):
             file_path (str): Path of the file in S3
 
         Returns:
-            Tuple: File content and mimetype
+            Tuple[Any, Any]: File content and mimetype
         """
         key = self.to_s3_key(file_path)
 
@@ -261,15 +276,22 @@ class S3Service(object):
         Returns:
             Any: The S3 client.
         """
+        settings = {
+            'payload_signing_enabled': False,
+            'use_accelerate_endpoint': False,
+            'addressing_style': 'path'
+        }
+        if not self.with_checksums:
+            settings['checksum_mode'] = 'DISABLED'
+            settings['flexible_checksums'] = True
+            settings['request_checksum_calculation'] = 'when_required'
+            settings['response_checksum_validation'] = 'when_required'
         config = Config(
-            s3={
-                'payload_signing_enabled': False,
-                'use_accelerate_endpoint': False,
-                'checksum_mode': 'DISABLED',
-                'addressing_style': 'path'
-            },
-            signature_version='s3v4'
+            s3=settings,
+            signature_version='s3v4',
+            disable_request_compression=True
         )
+            
         session = get_session()
         return session.create_client(
             's3',
@@ -504,12 +526,16 @@ class S3Service(object):
             bool: True if upload was successful, the object size in bytes otherwise
         """
         async with self._create_client() as client:
-            resp = await client.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=data,
-                ACL="public-read",
-                ContentType=mimetype)
+            # Disable checksums for S3-compatible services that don't support them
+            put_kwargs = {
+                'Bucket': bucket,
+                'Key': key,
+                'Body': data,
+                'ACL': 'public-read',
+                'ContentType': mimetype
+            }
+            
+            resp = await client.put_object(**put_kwargs)
 
             if resp["ResponseMetadata"][
                     "HTTPStatusCode"] == 200:
