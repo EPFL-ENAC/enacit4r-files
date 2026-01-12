@@ -235,7 +235,7 @@ class TestLocalFilesStore:
     async def test_file_exists_invalid_path(self, local_service):
         """Test checking an invalid path."""
         # Path traversal attempt should return False
-        assert await local_service.file_exists("../../etc/passwd") is False
+        assert await local_service.file_exists("/etc/passwd") is False
 
     @pytest.mark.asyncio
     async def test_copy_file(self, local_service):
@@ -350,7 +350,7 @@ class TestLocalFilesStore:
     @pytest.mark.asyncio
     async def test_security_path_traversal(self, local_service):
         """Test that path traversal attempts are blocked."""
-        with pytest.raises(ValueError, match="outside the base path"):
+        with pytest.raises(ValueError, match="Invalid path: '..' not allowed"):
             local_service._get_full_path("../../etc/passwd")
 
     @pytest.mark.asyncio

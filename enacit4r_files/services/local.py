@@ -32,6 +32,7 @@ class LocalFilesStore(FilesStore):
     Returns:
         Path: The full resolved path.
     """
+    path = self.sanitize_path(path)
     full_path = (self.base_path / path).resolve()
     # Ensure the path is within base_path (security check)
     if hasattr(full_path, "is_relative_to"):

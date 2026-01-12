@@ -1,3 +1,4 @@
+import re
 from typing import List, Tuple, Any
 from fastapi.datastructures import UploadFile
 from ..models.files import FileNode
@@ -12,6 +13,7 @@ class FilesStore:
   def __init__(self, key: bytes = None):
     """Initialize the files service."""
     self.fernet = Fernet(key) if key else None
+    self.sanitization_regex = re.compile(r'^[a-zA-Z0-9/ _.()\[\]:.-]+$')
   
   async def write_file(self, upload_file: UploadFile, folder: str = "") -> FileNode:
     """Write an uploaded file to the specified folder.
@@ -132,3 +134,24 @@ class FilesStore:
       return encrypted_content
     decrypted_content = self.fernet.decrypt(encrypted_content)
     return decrypted_content
+
+  def set_sanitization_regex(self, pattern: str):
+    """Set a custom regex pattern for path sanitization.
+
+    Args:
+        pattern (str): The regex pattern to use for sanitization.
+    """
+    self.sanitization_regex = re.compile(pattern)
+
+  def sanitize_path(self, path: str) -> str:
+    """Sanitize file paths to prevent directory traversal attacks. The FilesStore implementation may also
+    perform its own sanitization, but this can still be a utility function for the client application."""
+    # Remove leading slashes
+    path = path.lstrip("/")
+    # Remove \n and \r characters
+    path = path.replace("\n", "").replace("\r", "")
+    if ".." in path:
+        raise ValueError("Invalid path: '..' not allowed")
+    if path and not self.sanitization_regex.match(path):
+        raise ValueError("Invalid path: contains forbidden characters")
+    return path
