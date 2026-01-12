@@ -388,7 +388,7 @@ class S3Service(object):
         key = f"{self.path_prefix}{filename}"
         uploads3 = await self._upload_fileobj(bucket=self.bucket,
                                               key=key,
-                                              data=upload_file.file._file,
+                                              data=getattr(upload_file.file, '_file', upload_file.file),
                                               mimetype=upload_file.content_type)
         if uploads3:
             # response http to be used by the frontend
