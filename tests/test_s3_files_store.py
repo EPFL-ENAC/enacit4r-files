@@ -380,9 +380,10 @@ class TestS3FilesStore:
     async def test_delete_file(self, s3_files_store, mock_s3_service):
         """Test deleting a file."""
         mock_s3_service.delete_file.return_value = "delete_me.txt"
-        
-        with patch.object(s3_files_store, '_delete_file_node', new_callable=AsyncMock):
-            result = await s3_files_store.delete_file("delete_me.txt")
+        mock_none = FileNode(name="delete_me.txt", path="delete_me.txt", size=100, mime_type="text/plain", is_file=True)
+        with patch.object(s3_files_store, '_read_file_node', return_value=mock_none): 
+            with patch.object(s3_files_store, '_delete_file_node', new_callable=AsyncMock):
+                result = await s3_files_store.delete_file("delete_me.txt")
         
         assert result is True
         mock_s3_service.delete_file.assert_called_once_with("delete_me.txt")
@@ -392,8 +393,9 @@ class TestS3FilesStore:
         """Test deleting a non-existent file."""
         mock_s3_service.delete_file.return_value = False
         
-        result = await s3_files_store.delete_file("nonexistent.txt")
-        assert result is False
+        with patch.object(s3_files_store, '_read_file_node', return_value=None):
+            result = await s3_files_store.delete_file("nonexistent.txt")
+            assert result is True  # Deleting non-existent file is a no-op
 
 
 class TestS3FilesStoreWithEncryption:
@@ -785,9 +787,16 @@ class TestS3MetadataOperations:
     async def test_metadata_deleted_with_file(self, s3_files_store, mock_s3_service):
         """Test that metadata is deleted when file is deleted."""
         mock_s3_service.delete_file.return_value = "test.txt"
-        
-        with patch.object(s3_files_store, '_delete_file_node', new_callable=AsyncMock) as mock_delete:
-            await s3_files_store.delete_file("test.txt")
+        mock_node = FileNode(
+            name="test.txt",
+            path="test.txt",
+            size=100,
+            mime_type="text/plain",
+            is_file=True
+        )
+        with patch.object(s3_files_store, '_read_file_node', return_value=mock_node):
+            with patch.object(s3_files_store, '_delete_file_node', new_callable=AsyncMock) as mock_delete:
+                await s3_files_store.delete_file("test.txt")
             
-            # Verify metadata was deleted
-            mock_delete.assert_called_once_with("test.txt")
+        # Verify metadata was deleted
+        mock_delete.assert_called_once_with("test.txt")

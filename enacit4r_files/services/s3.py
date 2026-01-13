@@ -915,10 +915,18 @@ class S3FilesStore(FilesStore):
     """
     file_path = self.sanitize_path(file_path)
     try:
-      result = await self.s3_service.delete_file(file_path)
-      if result is not False:
-        await self._delete_file_node(file_path)
-      return result is not False
+      # Check if it's a file or folder by trying to read its metadata
+      node = await self._read_file_node(file_path)
+      if node and node.is_file:
+        # It's a file
+        result = await self.s3_service.delete_file(file_path)
+        if result is not False:
+          await self._delete_file_node(file_path)
+        return result is not False
+      else:
+        # It's a folder
+        result = await self.s3_service.delete_files(file_path)
+        return result is not False
     except Exception as e:
       logging.error(f"Error deleting file at {file_path}: {e}")
       return False
