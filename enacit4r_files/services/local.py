@@ -345,7 +345,7 @@ class LocalFilesStore(FilesStore):
       return False
   
   async def delete_file(self, file_path: str) -> bool:
-    """Delete the file at the specified path.
+    """Delete the file at the specified path. If the parent folder becomes empty, it is also deleted.
     
     Args:
         file_path (str): The path to the file to delete.
@@ -364,6 +364,15 @@ class LocalFilesStore(FilesStore):
         self._delete_file_node(full_path)
       elif full_path.is_dir():
         shutil.rmtree(full_path)
+      
+      if full_path.parent.exists():
+        # Clean parent folder if it is empty
+        is_empty = not any(full_path.parent.iterdir())
+        if is_empty:
+          try:
+            full_path.parent.rmdir()
+          except OSError:
+            logging.error(f"Could not remove directory: {full_path.parent}")
       
       return True
     except Exception as e:

@@ -15,7 +15,8 @@ def temp_dir():
     temp_path = tempfile.mkdtemp()
     yield temp_path
     # Cleanup after test
-    shutil.rmtree(temp_path)
+    if Path(temp_path).exists():
+        shutil.rmtree(temp_path)
 
 
 @pytest.fixture

@@ -99,7 +99,7 @@ class FilesStore:
     pass
 
   async def delete_file(self, file_path: str) -> bool:
-    """Delete the file at the specified path.
+    """Delete the file at the specified path. If the parent folder becomes empty, it is also deleted.
     
     Args:
         file_path (str): The path to the file to delete.
