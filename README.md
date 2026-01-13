@@ -16,10 +16,10 @@ To include the files library in your project:
 # Using Poetry
 poetry add git+https://github.com/EPFL-ENAC/enacit4r-files#someref
 # Using uv
-uv add git+https://github.com/EPFL-ENAC/enacit4r-files#someref
+uv add git+https://github.com/EPFL-ENAC/enacit4r-files --tag tagname
 ```
 
-Note: `someref` should be replaced by the commit hash, tag or branch name you want to use.
+Note: For Poetry, `someref` should be replaced by the commit hash, tag or branch name you want to use. For uv, see [UV Git dependencies documentation](https://docs.astral.sh/uv/concepts/projects/dependencies/#git).
 
 ## Development
 
