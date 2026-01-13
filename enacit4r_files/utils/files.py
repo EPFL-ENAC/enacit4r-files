@@ -71,18 +71,34 @@ class FileNodeBuilder:
         return cls(name = name, path = path, size = size, is_file = False)
 
     @classmethod
-    def from_ref(cls, file_ref: FileRef):
+    def from_ref(cls, file_ref: FileRef, path_prefix: str = None):
         """Make a single file node representing a file reference in S3.
 
         Args:
             file_ref (FileRef): The file reference
+            path_prefix (str, optional): A prefix to remove from the file path. Defaults to None.
 
         Returns:
             FileNodeBuilder: The builder
         """
-        builder = cls(name = file_ref.name, path = file_ref.path, size = file_ref.size,
-                   is_file = True,
-                   alt_name = file_ref.alt_name, alt_path = file_ref.alt_path, alt_size = file_ref.alt_size)
+        def remove_path_prefix(path: str) -> str:
+            if path is None or path_prefix is None or path_prefix == "":
+                return path
+            if path.startswith(path_prefix):
+                return path[len(path_prefix):]
+            # case path_prefix needs to be uri encoded
+            encoded_prefix = quote(path_prefix, safe="/")
+            if path.startswith(encoded_prefix):
+                return path[len(encoded_prefix):]
+            return path
+        
+        builder = cls(name = file_ref.name,
+                      path = remove_path_prefix(file_ref.path),
+                      size = file_ref.size,
+                      is_file = True,
+                      alt_name = file_ref.alt_name,
+                      alt_path = remove_path_prefix(file_ref.alt_path) if file_ref.alt_path else None,
+                      alt_size = file_ref.alt_size)
         # Preserve mime_type fields
         builder.root.mime_type = file_ref.mime_type
         builder.root.alt_mime_type = file_ref.alt_mime_type

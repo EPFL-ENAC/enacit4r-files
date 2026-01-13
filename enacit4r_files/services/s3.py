@@ -642,7 +642,7 @@ class S3FilesStore(FilesStore):
     file_ref = await self.s3_service.upload_file(encrypted_file, folder)
     
     # Convert FileRef to FileNode
-    node = FileNodeBuilder.from_ref(file_ref).build()
+    node = FileNodeBuilder.from_ref(file_ref, self.s3_service.path_prefix).build()
     node.size = size  # Use original size before encryption
     
     # Dump file metadata in S3
@@ -694,7 +694,7 @@ class S3FilesStore(FilesStore):
       file_ref = await self.s3_service.upload_local_file(parent_path, relative_path, folder)
     
     # Convert FileRef to FileNode
-    node = FileNodeBuilder.from_ref(file_ref).build()
+    node = FileNodeBuilder.from_ref(file_ref, self.s3_service.path_prefix).build()
     node.size = size  # Use original size before encryption
     
     # Dump file metadata in S3
