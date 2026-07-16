@@ -4,7 +4,6 @@ from botocore.config import Config
 from io import BytesIO
 from fastapi.datastructures import UploadFile
 from starlette.datastructures import Headers
-from PIL import Image
 from ..utils.files import FileNodeBuilder, image_mimetypes
 from ..models.files import FileRef, FileNode
 from .files import FilesStore
@@ -309,6 +308,8 @@ class S3Service(object):
         Returns:
             Tuple[BytesIO, BytesIO]: Data of webp image and data of original image
         """
+        from PIL import Image
+
         request_object_content = await upload_file.read()
         origin_BytesIo = BytesIO(request_object_content)
         image = Image.open(origin_BytesIo)
@@ -351,10 +352,14 @@ class S3Service(object):
         if upload_file.content_type == "image/webp":
             # no need to convert to webp
             return await self._upload_file(upload_file, s3_folder)
-        else:
+
+        try:
             # convert to bytes
             (data, origin_data) = await self._convert_image(upload_file)
-
+        except ImportError:
+            # Pillow is not installed: upload the image as-is, unconverted
+            return await self._upload_file(upload_file, s3_folder)
+        else:
             # Webp converted image
             mimetype = "image/webp"
             (unique_file_name, name) = await self._get_unique_filename(upload_file.filename, ".webp", s3_folder=s3_folder)
@@ -439,13 +444,16 @@ class S3Service(object):
         if file_path.endswith(".webp"):
             # no need to convert to webp
             return await self._upload_local_file(parent_path, file_path, s3_folder)
+
+        try:
+            # convert to webp
+            file_path_alt = self._convert_image_file(parent_path, file_path)
+        except ImportError:
+            # Pillow is not installed: upload the image as-is, unconverted
+            return await self._upload_local_file(parent_path, file_path, s3_folder)
         else:
             alt_info = None
             try:
-                # convert to webp
-                file_path_alt = self._convert_image_file(
-                    parent_path, file_path)
-
                 # upload converted file
                 alt_info = await self._upload_local_file(
                     parent_path, file_path_alt, s3_folder)
@@ -469,6 +477,8 @@ class S3Service(object):
              ) if alt_info else orig_info
 
     def _convert_image_file(self, parent_path: str, file_path: str) -> str:
+        from PIL import Image
+
         split_file_path = os.path.splitext(file_path)
         file_path_webp = f"{split_file_path[0]}.webp"
         input_file = os.path.join(parent_path, file_path)

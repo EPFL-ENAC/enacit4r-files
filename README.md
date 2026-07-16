@@ -21,6 +21,20 @@ uv add git+https://github.com/EPFL-ENAC/enacit4r-files --tag tagname
 
 Note: For Poetry, `someref` should be replaced by the commit hash, tag or branch name you want to use. For uv, see [UV Git dependencies documentation](https://docs.astral.sh/uv/concepts/projects/dependencies/#git).
 
+### Optional image conversion support
+
+Pillow is only required for image conversion to WebP in `S3Service` (`upload_image`/`upload_local_image`). Consumers that only need local storage, regular S3 file operations, encryption, file validation, or file-tree utilities do not need it, so it is installed via the `images` extra:
+
+```shell
+# Standard installation (no Pillow)
+uv add git+https://github.com/EPFL-ENAC/enacit4r-files
+
+# With image conversion support
+uv add "enacit4r-files[images] @ git+https://github.com/EPFL-ENAC/enacit4r-files"
+```
+
+Without the `images` extra installed, images are uploaded as-is (no WebP conversion, no alternate/original pair) instead of raising an error.
+
 ## Development
 
 See the Makefile for available commands.
