@@ -106,6 +106,34 @@ s3_files_service = S3FilesStore(s3_service, key=key)
 # do something with s3_files_service
 ```
 
+#### Connection lifecycle
+
+`S3Service` keeps **one long-lived S3 client** (and its TCP/TLS connection
+pool), created lazily on the first operation and reused by every call —
+including everything `S3FilesStore` does through it. Close it once on
+application shutdown; with FastAPI, the lifespan hook is the natural place:
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+s3_service = S3Service(...)          # module-level singleton is fine
+s3_files_service = S3FilesStore(s3_service)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await s3_service.close()         # closes the pooled S3 connections
+
+app = FastAPI(lifespan=lifespan)
+```
+
+`close()` is idempotent, and the next operation after a `close()` transparently
+opens a fresh client — so short-lived scripts may simply skip it (the only cost
+is an "unclosed connector" warning from aiohttp at interpreter exit). Scripts
+calling `asyncio.run()` several times need no special handling either: a client
+bound to a previous event loop is detected and replaced automatically.
+
 ### S3Service
 
 This is a low-level service to interact with S3 file storage. It is recommended to use `S3FilesStore` instead, which provides higher-level methods.
