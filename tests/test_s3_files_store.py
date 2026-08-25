@@ -987,3 +987,21 @@ class TestListFilesParallelMetadata:
         assert rfn.call_count == 2
         # a.txt listed; b.txt degraded (warning) instead of failing the listing
         assert [n.name for n in nodes] == ["a.txt"]
+
+
+class TestPoolSizeConfig:
+    @pytest.mark.asyncio
+    async def test_max_pool_connections_reaches_botocore_config(self):
+        service = S3Service(
+            s3_endpoint_url="http://localhost:9000",
+            s3_access_key_id="key",
+            s3_secret_access_key="secret",
+            region="us-east-1",
+            bucket="test-bucket",
+            path_prefix="test-prefix/",
+            max_pool_connections=32,
+        )
+        with patch("enacit4r_files.services.s3.get_session") as gs:
+            service._create_client()
+        config = gs.return_value.create_client.call_args.kwargs["config"]
+        assert config.max_pool_connections == 32

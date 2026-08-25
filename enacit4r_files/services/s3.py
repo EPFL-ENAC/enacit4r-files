@@ -23,7 +23,7 @@ class S3Error(Exception):
 
 class S3Service(object):
 
-    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False):
+    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False, max_pool_connections: int = 10):
         """Initiate the S3 service.
 
         Args:
@@ -35,6 +35,10 @@ class S3Service(object):
             path_prefix (str): The prefix path within the S3 bucket.
             with_checksums (bool, optional): Whether to enable checksum handling. When False (default), 
             checksum use is disabled for compatibility with S3-compatible services that do not support checksums.
+            max_pool_connections (int, optional): Max concurrent connections in the shared
+            client's pool (botocore default 10). Raise it when many operations run in
+            parallel, e.g. listing large folders. Retry behavior is tunable without code
+            via botocore's standard AWS_RETRY_MODE / AWS_MAX_ATTEMPTS environment variables.
         """
         self.s3_endpoint_url = s3_endpoint_url
         self.s3_access_key_id = s3_access_key_id
@@ -43,6 +47,7 @@ class S3Service(object):
         self.path_prefix = path_prefix if path_prefix.endswith("/") else f"{path_prefix}/"
         self.bucket = bucket
         self.with_checksums = with_checksums
+        self.max_pool_connections = max_pool_connections
         # Shared long-lived client (created lazily) — see _client()
         self._shared_client = None
         self._shared_client_cm = None
@@ -301,7 +306,8 @@ class S3Service(object):
         config = Config(
             s3=settings,
             signature_version='s3v4',
-            disable_request_compression=True
+            disable_request_compression=True,
+            max_pool_connections=self.max_pool_connections
         )
             
         session = get_session()
