@@ -93,7 +93,7 @@ class TestS3FilesStore:
         
         # Verify S3Service methods were called
         assert mock_s3_service.upload_file.called
-        assert mock_s3_service.upload_local_file.called  # For metadata
+        assert mock_s3_service._upload_fileobj.called  # For metadata
 
     @pytest.mark.asyncio
     async def test_upload_file_to_root(self, s3_files_store, mock_s3_service):
@@ -689,17 +689,17 @@ class TestS3MetadataOperations:
             is_file=True
         )
         
-        mock_s3_service.upload_local_file.return_value = FileRef(
-            name=f"test.txt{s3_files_store.meta_extension}",
-            path=f"folder/test.txt{s3_files_store.meta_extension}",
-            size=200,
-            mime_type="application/json"
-        )
-        
+        mock_s3_service._upload_fileobj = AsyncMock(return_value=200)
+        mock_s3_service._get_mime_type = MagicMock(return_value="application/json")
+
         await s3_files_store._dump_file_node(node, "folder")
-        
-        # Verify upload was called
-        assert mock_s3_service.upload_local_file.called
+
+        # Direct put of the JSON bytes — no tempfile, no upload_local_file
+        assert not mock_s3_service.upload_local_file.called
+        kwargs = mock_s3_service._upload_fileobj.call_args.kwargs
+        assert kwargs["key"] == (
+            f"test-prefix/folder/test.txt{s3_files_store.meta_extension}")
+        assert kwargs["data"] == node.model_dump_json().encode("utf-8")
 
     @pytest.mark.asyncio
     async def test_read_file_node(self, s3_files_store, mock_s3_service):
@@ -919,3 +919,71 @@ class TestUploadFileobjNoHead:
             data=data, bucket="test-bucket", key="k", mimetype="text/plain")
         assert size == 11
         assert data.tell() == 0  # position restored for the PUT/body reader
+
+
+class TestSharedClient:
+    """The S3 client is created once and reused across operations."""
+
+    @pytest.mark.asyncio
+    async def test_client_created_once_across_operations(self):
+        head = AsyncMock(return_value={"ResponseMetadata": {"HTTPStatusCode": 200}})
+        service, _ = _service_with_client(head_object=head)
+
+        await service.path_exists("a.txt")
+        await service.path_exists("b.txt")
+        await service.path_exists("c.txt")
+
+        service._create_client.assert_called_once()
+        assert head.await_count == 3
+
+    @pytest.mark.asyncio
+    async def test_close_disposes_and_next_op_recreates(self):
+        head = AsyncMock(return_value={"ResponseMetadata": {"HTTPStatusCode": 200}})
+        service, _ = _service_with_client(head_object=head)
+
+        await service.path_exists("a.txt")
+        await service.close()
+        ctx = service._create_client.return_value
+        ctx.__aexit__.assert_awaited_once()
+
+        await service.path_exists("b.txt")
+        assert service._create_client.call_count == 2
+
+    def test_new_event_loop_gets_fresh_client(self):
+        import asyncio
+
+        head = AsyncMock(return_value={"ResponseMetadata": {"HTTPStatusCode": 200}})
+        service, _ = _service_with_client(head_object=head)
+
+        asyncio.run(service.path_exists("a.txt"))
+        asyncio.run(service.path_exists("b.txt"))  # stale-loop client replaced
+
+        assert service._create_client.call_count == 2
+
+
+class TestListFilesParallelMetadata:
+    """list_files prefetches sidecars concurrently instead of one GET per file."""
+
+    @pytest.mark.asyncio
+    async def test_nodes_come_from_prefetch_and_errors_degrade_per_file(
+            self, s3_files_store, mock_s3_service):
+        mock_s3_service.list_files.return_value = [
+            "folder/a.txt",
+            f"folder/a.txt{s3_files_store.meta_extension}",
+            "folder/b.txt",
+        ]
+        node_a = FileNode(name="a.txt", path="folder/a.txt", size=1,
+                          mime_type="text/plain", is_file=True)
+
+        async def read_node(key):
+            if "b.txt" in key:
+                raise RuntimeError("sidecar unreadable")
+            return node_a
+
+        with patch.object(s3_files_store, '_read_file_node', side_effect=read_node) as rfn:
+            nodes = await s3_files_store.list_files("folder")
+
+        # one read per real file, none for the sidecar key itself
+        assert rfn.call_count == 2
+        # a.txt listed; b.txt degraded (warning) instead of failing the listing
+        assert [n.name for n in nodes] == ["a.txt"]
