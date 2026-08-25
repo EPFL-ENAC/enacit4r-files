@@ -1,6 +1,7 @@
 from typing import List, Tuple, Any
 from aiobotocore.session import get_session
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from io import BytesIO
 from fastapi.datastructures import UploadFile
 from starlette.datastructures import Headers
@@ -72,20 +73,27 @@ class S3Service(object):
             file_path (str): Path of the file in S3
 
         Returns:
-            bool: True if file exists, False otherwise
+            bool: True if file exists, False if S3 reports 404
+
+        Raises:
+            ClientError: On any S3 failure other than a 404
         """
         key = self.to_s3_key(file_path)
 
         # check if file_path exists
         async with self._create_client() as client:
             try:
-                response = await client.head_object(
-                    Bucket=self.bucket, Key=key)
-                if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                    return True
-            except Exception as e:
-                return False
-        return False
+                await client.head_object(Bucket=self.bucket, Key=key)
+                return True
+            except ClientError as e:
+                status = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+                if status == 404:
+                    return False
+                # A permission error or a network/storage fault is not
+                # "the file does not exist" — surface it (#24).
+                logging.error(
+                    f"path_exists failed for {self.bucket}/{key}: {e}")
+                raise
 
     async def list_files(self, folder_path: str) -> List[str]:
         """List files in a folder in S3 storage
@@ -534,8 +542,17 @@ class S3Service(object):
             mimetype (str): Object mimetype
 
         Returns:
-            bool: True if upload was successful, the object size in bytes otherwise
+            bool: The object size in bytes if the upload succeeded, False otherwise
         """
+        # The size is known locally (bytes directly, file-like via seek/tell),
+        # so no HeadObject round-trip is needed after the PUT (#25).
+        if isinstance(data, bytes):
+            object_size = len(data)
+        else:
+            position = data.tell()
+            data.seek(0, os.SEEK_END)
+            object_size = data.tell() - position
+            data.seek(position)
         async with self._create_client() as client:
             # Disable checksums for S3-compatible services that don't support them
             put_kwargs = {
@@ -552,8 +569,6 @@ class S3Service(object):
                     "HTTPStatusCode"] == 200:
                 logging.info(
                     f"File uploaded path : {self.s3_endpoint_url}/{bucket}/{key}")
-                resp = await client.head_object(Bucket=bucket, Key=key)
-                object_size = resp.get("ContentLength", 0)
                 return object_size
         return False
 
@@ -864,6 +879,10 @@ class S3FilesStore(FilesStore):
 
     Returns:
         bool: True if the copy was successful, False otherwise.
+
+    Raises:
+        S3Error: When the underlying storage operation fails; the original
+            exception is chained as __cause__ (#24).
     """
     try:
       source_path = self.sanitize_path(source_path)
@@ -880,8 +899,8 @@ class S3FilesStore(FilesStore):
           logging.warning(f"Could not copy metadata for {source_path} to {destination_path}: {e}")
       return result is not False
     except Exception as e:
-      logging.error(f"Error copying file from {source_path} to {destination_path}: {e}")
-      return False
+      logging.exception(f"Error copying file from {source_path} to {destination_path}")
+      raise S3Error(f"Error copying file from {source_path} to {destination_path}: {e}") from e
 
   async def move_file(self, source_path: str, destination_path: str) -> bool:
     """Move file from one location to another.
@@ -892,6 +911,10 @@ class S3FilesStore(FilesStore):
     
     Returns:
         bool: True if the move was successful, False otherwise.
+
+    Raises:
+        S3Error: When the underlying storage operation fails; the original
+            exception is chained as __cause__ (#24).
     """
     try:
       source_path = self.sanitize_path(source_path)
@@ -911,8 +934,8 @@ class S3FilesStore(FilesStore):
           logging.warning(f"Could not move metadata for {source_path} to {destination_path}: {e}")
       return result is not False
     except Exception as e:
-      logging.error(f"Error moving file from {source_path} to {destination_path}: {e}")
-      return False
+      logging.exception(f"Error moving file from {source_path} to {destination_path}")
+      raise S3Error(f"Error moving file from {source_path} to {destination_path}: {e}") from e
 
   async def delete_file(self, file_path: str) -> bool:
     """Delete the file at the specified path.
@@ -922,6 +945,10 @@ class S3FilesStore(FilesStore):
     
     Returns:
         bool: True if the deletion was successful, False otherwise.
+
+    Raises:
+        S3Error: When the underlying storage operation fails; the original
+            exception is chained as __cause__ (#24).
     """
     file_path = self.sanitize_path(file_path)
     try:
@@ -938,5 +965,5 @@ class S3FilesStore(FilesStore):
         result = await self.s3_service.delete_files(file_path)
         return result is not False
     except Exception as e:
-      logging.error(f"Error deleting file at {file_path}: {e}")
-      return False
+      logging.exception(f"Error deleting file at {file_path}")
+      raise S3Error(f"Error deleting file at {file_path}: {e}") from e

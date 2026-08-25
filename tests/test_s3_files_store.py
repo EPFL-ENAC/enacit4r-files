@@ -5,7 +5,8 @@ from cryptography.fernet import Fernet
 from fastapi.datastructures import UploadFile
 from starlette.datastructures import Headers
 from enacit4r_files.services import S3FilesStore
-from enacit4r_files.services.s3 import S3Service
+from enacit4r_files.services.s3 import S3Error, S3Service
+from botocore.exceptions import ClientError
 from enacit4r_files.models.files import FileNode, FileRef
 
 
@@ -800,3 +801,121 @@ class TestS3MetadataOperations:
             
         # Verify metadata was deleted
         mock_delete.assert_called_once_with("test.txt")
+
+
+def _client_error(status: int, operation: str = "HeadObject") -> "ClientError":
+    return ClientError(
+        {
+            "ResponseMetadata": {"HTTPStatusCode": status},
+            "Error": {"Code": str(status), "Message": "boom"},
+        },
+        operation,
+    )
+
+
+class TestErrorTransparency:
+    """#24 — storage failures surface instead of collapsing to False."""
+
+    @pytest.mark.asyncio
+    async def test_move_file_raises_s3error_with_cause(self, s3_files_store, mock_s3_service):
+        original = _client_error(403, "CopyObject")
+        mock_s3_service.move_file.side_effect = original
+
+        with pytest.raises(S3Error) as exc:
+            await s3_files_store.move_file("source.txt", "destination.txt")
+        assert exc.value.__cause__ is original
+        assert "source.txt" in str(exc.value)
+
+    @pytest.mark.asyncio
+    async def test_copy_file_raises_s3error_with_cause(self, s3_files_store, mock_s3_service):
+        original = _client_error(500, "CopyObject")
+        mock_s3_service.copy_file.side_effect = original
+
+        with pytest.raises(S3Error) as exc:
+            await s3_files_store.copy_file("source.txt", "destination.txt")
+        assert exc.value.__cause__ is original
+
+    @pytest.mark.asyncio
+    async def test_delete_file_raises_s3error_with_cause(self, s3_files_store, mock_s3_service):
+        original = _client_error(403, "DeleteObject")
+        mock_s3_service.delete_file.side_effect = original
+        mock_node = FileNode(name="f.txt", path="f.txt", size=1, mime_type="text/plain", is_file=True)
+
+        with patch.object(s3_files_store, '_read_file_node', return_value=mock_node):
+            with pytest.raises(S3Error) as exc:
+                await s3_files_store.delete_file("f.txt")
+        assert exc.value.__cause__ is original
+
+    @pytest.mark.asyncio
+    async def test_move_file_still_returns_false_without_exception(self, s3_files_store, mock_s3_service):
+        # S3 reporting a non-raising failure keeps the boolean contract.
+        mock_s3_service.move_file.return_value = False
+        assert await s3_files_store.move_file("a.txt", "b.txt") is False
+
+
+def _service_with_client(**client_methods):
+    service = S3Service(
+        s3_endpoint_url="http://localhost:9000",
+        s3_access_key_id="key",
+        s3_secret_access_key="secret",
+        region="us-east-1",
+        bucket="test-bucket",
+        path_prefix="test-prefix/",
+    )
+    client = MagicMock()
+    for name, mock in client_methods.items():
+        setattr(client, name, mock)
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=client)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    service._create_client = MagicMock(return_value=ctx)
+    return service, client
+
+
+class TestPathExists:
+    """#24 — path_exists distinguishes 404 from genuine failures."""
+
+    @pytest.mark.asyncio
+    async def test_404_returns_false(self):
+        service, _ = _service_with_client(
+            head_object=AsyncMock(side_effect=_client_error(404)))
+        assert await service.path_exists("missing.txt") is False
+
+    @pytest.mark.asyncio
+    async def test_found_returns_true(self):
+        service, _ = _service_with_client(head_object=AsyncMock(return_value={
+            "ResponseMetadata": {"HTTPStatusCode": 200}}))
+        assert await service.path_exists("present.txt") is True
+
+    @pytest.mark.asyncio
+    async def test_non_404_error_raises(self):
+        service, _ = _service_with_client(
+            head_object=AsyncMock(side_effect=_client_error(403)))
+        with pytest.raises(ClientError):
+            await service.path_exists("forbidden.txt")
+
+
+class TestUploadFileobjNoHead:
+    """#25 — no HeadObject after PutObject; size computed locally."""
+
+    @pytest.mark.asyncio
+    async def test_bytes_upload_returns_len_without_head(self):
+        put = AsyncMock(return_value={"ResponseMetadata": {"HTTPStatusCode": 200}})
+        head = AsyncMock()
+        service, client = _service_with_client(put_object=put, head_object=head)
+
+        size = await service._upload_fileobj(
+            data=b"hello", bucket="test-bucket", key="k", mimetype="text/plain")
+        assert size == 5
+        head.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fileobj_upload_returns_size_and_keeps_position(self):
+        put = AsyncMock(return_value={"ResponseMetadata": {"HTTPStatusCode": 200}})
+        service, _ = _service_with_client(put_object=put)
+        data = BytesIO(b"hello world")
+
+        size = await service._upload_fileobj(
+            data=data, bucket="test-bucket", key="k", mimetype="text/plain")
+        assert size == 11
+        assert data.tell() == 0  # position restored for the PUT/body reader
