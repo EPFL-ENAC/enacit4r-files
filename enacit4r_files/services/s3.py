@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from typing import List, Tuple, Any
 from aiobotocore.session import get_session
 from botocore.config import Config
@@ -21,7 +23,7 @@ class S3Error(Exception):
 
 class S3Service(object):
 
-    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False):
+    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False, max_pool_connections: int = 10):
         """Initiate the S3 service.
 
         Args:
@@ -33,6 +35,10 @@ class S3Service(object):
             path_prefix (str): The prefix path within the S3 bucket.
             with_checksums (bool, optional): Whether to enable checksum handling. When False (default), 
             checksum use is disabled for compatibility with S3-compatible services that do not support checksums.
+            max_pool_connections (int, optional): Max concurrent connections in the shared
+            client's pool (botocore default 10). Raise it when many operations run in
+            parallel, e.g. listing large folders. Retry behavior is tunable without code
+            via botocore's standard AWS_RETRY_MODE / AWS_MAX_ATTEMPTS environment variables.
         """
         self.s3_endpoint_url = s3_endpoint_url
         self.s3_access_key_id = s3_access_key_id
@@ -41,6 +47,11 @@ class S3Service(object):
         self.path_prefix = path_prefix if path_prefix.endswith("/") else f"{path_prefix}/"
         self.bucket = bucket
         self.with_checksums = with_checksums
+        self.max_pool_connections = max_pool_connections
+        # Shared long-lived client (created lazily) — see _client()
+        self._shared_client = None
+        self._shared_client_cm = None
+        self._client_loop = None
 
     def to_s3_path(self, file_path: str) -> str:
         """Ensure that file path starts with path prefix.
@@ -81,7 +92,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # check if file_path exists
-        async with self._create_client() as client:
+        async with self._client() as client:
             try:
                 await client.head_object(Bucket=self.bucket, Key=key)
                 return True
@@ -108,7 +119,7 @@ class S3Service(object):
 
         keys = []
         # list files in folder_path
-        async with self._create_client() as client:
+        async with self._client() as client:
             paginator = client.get_paginator('list_objects_v2')
             async for page in paginator.paginate(Bucket=self.bucket, Prefix=key):
                 if 'Contents' in page:
@@ -128,7 +139,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # get file from file path
-        async with self._create_client() as client:
+        async with self._client() as client:
             try:
                 response = await client.get_object(
                     Bucket=self.bucket, Key=key)
@@ -208,7 +219,7 @@ class S3Service(object):
         destination_key = self.to_s3_key(destination_path)
 
         # copy file_path to new location
-        async with self._create_client() as client:
+        async with self._client() as client:
             response = await client.copy_object(
                 Bucket=self.bucket,
                 CopySource={'Bucket': self.bucket, 'Key': source_key},
@@ -232,7 +243,7 @@ class S3Service(object):
         key = self.to_s3_key(file_path)
 
         # delete file_path
-        async with self._create_client() as client:
+        async with self._client() as client:
             response = await client.delete_object(
                 Bucket=self.bucket, Key=key)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 204:
@@ -253,7 +264,7 @@ class S3Service(object):
         folder_key = self.to_s3_key(file_path)
 
         # delete file_path
-        async with self._create_client() as client:
+        async with self._client() as client:
             # delete content, if any
             paginator = client.get_paginator('list_objects_v2')
             async for result in paginator.paginate(Bucket=self.bucket, Prefix=folder_key):
@@ -295,7 +306,8 @@ class S3Service(object):
         config = Config(
             s3=settings,
             signature_version='s3v4',
-            disable_request_compression=True
+            disable_request_compression=True,
+            max_pool_connections=self.max_pool_connections
         )
             
         session = get_session()
@@ -306,6 +318,46 @@ class S3Service(object):
             aws_secret_access_key=self.s3_secret_access_key,
             aws_access_key_id=self.s3_access_key_id,
             config=config)
+
+    @asynccontextmanager
+    async def _client(self):
+        """Yield the shared long-lived S3 client, creating it on first use.
+
+        Creating a client per operation (the previous behavior) paid client
+        construction plus a fresh TCP/TLS handshake to the endpoint on every
+        single S3 call. aiobotocore clients are designed to be long-lived,
+        so one client (and its connection pool) is kept for the lifetime of
+        the service. Call close() on application shutdown.
+
+        The client is bound to the running event loop; if the loop changed
+        (scripts calling asyncio.run() repeatedly, test suites), a fresh
+        client transparently replaces the stale one.
+        """
+        loop = asyncio.get_running_loop()
+        if self._shared_client is None or self._client_loop is not loop:
+            cm = self._create_client()
+            client = await cm.__aenter__()
+            if self._shared_client is not None and self._client_loop is loop:
+                # Lost a first-use race on the same loop: serve this one
+                # call with our own client, close it, keep the winner's.
+                try:
+                    yield client
+                finally:
+                    await cm.__aexit__(None, None, None)
+                return
+            self._shared_client = client
+            self._shared_client_cm = cm
+            self._client_loop = loop
+        yield self._shared_client
+
+    async def close(self):
+        """Close the shared client and its connection pool. Idempotent."""
+        if (self._shared_client is not None
+                and self._client_loop is asyncio.get_running_loop()):
+            await self._shared_client_cm.__aexit__(None, None, None)
+        self._shared_client = None
+        self._shared_client_cm = None
+        self._client_loop = None
 
     async def _convert_image(self, upload_file: UploadFile) -> Tuple[BytesIO, BytesIO]:
         """Convert an image to webp format
@@ -553,7 +605,7 @@ class S3Service(object):
             data.seek(0, os.SEEK_END)
             object_size = data.tell() - position
             data.seek(position)
-        async with self._create_client() as client:
+        async with self._client() as client:
             # Disable checksums for S3-compatible services that don't support them
             put_kwargs = {
                 'Bucket': bucket,
@@ -607,15 +659,17 @@ class S3FilesStore(FilesStore):
         folder (str): The folder in S3 to dump the file node to.
     """
     json_name = f"{file_node.name}{self.meta_extension}"
-    # Make temp directory and dump json file
-    with tempfile.TemporaryDirectory() as temp_dir:
-      temp_path = Path(temp_dir) / json_name
-      with open(temp_path, "w") as f:
-        f.write(file_node.model_dump_json())
-      # Upload to S3
-      s3_folder = folder.rstrip("/") if folder else ""
-      with open(temp_path, "rb") as f:
-        await self.s3_service.upload_local_file(str(temp_path.parent), json_name, s3_folder)
+    s3_folder = folder.rstrip("/") if folder else ""
+    # Same key layout upload_local_file produced, minus the tempfile
+    # round-trip through the local disk the old implementation made.
+    key = f"{self.s3_service.path_prefix}{s3_folder}/{json_name}"
+    uploaded = await self.s3_service._upload_fileobj(
+      data=file_node.model_dump_json().encode("utf-8"),
+      bucket=self.s3_service.bucket,
+      key=key,
+      mimetype=self.s3_service._get_mime_type(json_name))
+    if uploaded is False:
+      raise S3Error(f"Failed to upload file metadata to S3: {key}")
   
   async def _read_file_node(self, file_key: str) -> FileNode:
     """Read a FileNode from a JSON file in S3.
@@ -759,7 +813,20 @@ class S3FilesStore(FilesStore):
     folder = self.sanitize_path(folder)
     # List all keys in the folder
     keys = await self.s3_service.list_files(folder)
-    
+
+    # Pre-fetch every metadata sidecar concurrently: the loop below used to
+    # await one GET per file, serially — seconds for a moderately full folder.
+    file_keys = [k for k in keys
+                 if not k.endswith(self.meta_extension) and not k.endswith("/")]
+    prefetched = await asyncio.gather(
+      *(self._read_file_node(k) for k in file_keys), return_exceptions=True)
+    metadata_nodes = {}
+    for k, result in zip(file_keys, prefetched):
+      if isinstance(result, BaseException):
+        logging.warning(f"Could not read metadata for {k}: {result}")
+      else:
+        metadata_nodes[k] = result
+
     file_nodes = []
     folder_key = self.s3_service.to_s3_key(folder)
     if not folder_key.endswith("/"):
@@ -788,7 +855,7 @@ class S3FilesStore(FilesStore):
           seen_items.add(item_name)
           # Get file details from associate metadata file
           try:
-            node = await self._read_file_node(key)
+            node = metadata_nodes.get(key)
             if node:
               file_nodes.append(node)
           except Exception as e:
@@ -805,7 +872,7 @@ class S3FilesStore(FilesStore):
               seen_items.add(key)
               # Get file details from associated metadata file
               try:
-                node = await self._read_file_node(key)
+                node = metadata_nodes.get(key)
                 if node:
                   # Create all intermediate directories and build hierarchy
                   for i in range(len(path_parts) - 1):
