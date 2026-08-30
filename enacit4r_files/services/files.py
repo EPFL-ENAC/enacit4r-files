@@ -4,6 +4,15 @@ from fastapi.datastructures import UploadFile
 from ..models.files import FileNode
 from cryptography.fernet import Fernet
 
+class FilesStoreError(Exception):
+  """Raised when a storage operation fails, regardless of backend.
+
+  Backend-agnostic so a caller can handle failures from any FilesStore
+  implementation with one `except`. ``S3Error`` subclasses this, so code
+  already catching ``S3Error`` keeps working unchanged.
+  """
+  pass
+
 class FilesStore:
   """
   This service provides file-related operations. It is an abstraction layer
@@ -92,9 +101,15 @@ class FilesStore:
     Args:
         source_path (str): The source file path.
         destination_path (str): The destination file path.
-    
+
     Returns:
-        bool: True if the move was successful, False otherwise.
+        bool: True if the move was successful.
+
+    Raises:
+        FilesStoreError: When the underlying storage operation fails; the
+            original exception is chained as ``__cause__``. Every backend
+            raises rather than returning False, so one ``except`` handles
+            all of them.
     """
     pass
 

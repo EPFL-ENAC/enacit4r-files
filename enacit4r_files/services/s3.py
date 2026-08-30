@@ -9,7 +9,7 @@ from fastapi.datastructures import UploadFile
 from starlette.datastructures import Headers
 from ..utils.files import FileNodeBuilder, image_mimetypes
 from ..models.files import FileRef, FileNode
-from .files import FilesStore
+from .files import FilesStore, FilesStoreError
 import logging
 import os
 import urllib.parse
@@ -17,8 +17,12 @@ import mimetypes
 import tempfile
 from pathlib import Path
 
-class S3Error(Exception):
-    """Exception raised when managing S3 files."""
+class S3Error(FilesStoreError):
+    """Exception raised when managing S3 files.
+
+    Subclasses the backend-agnostic ``FilesStoreError`` so callers can catch
+    either; existing ``except S3Error`` code is unaffected.
+    """
     pass
 
 class S3Service(object):
