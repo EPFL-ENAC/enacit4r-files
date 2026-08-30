@@ -6,7 +6,7 @@ from pathlib import Path
 from io import BytesIO
 from cryptography.fernet import Fernet
 from fastapi.datastructures import UploadFile
-from enacit4r_files.services import LocalFilesStore, FileNode
+from enacit4r_files.services import LocalFilesStore, FileNode, FilesStoreError
 
 
 @pytest.fixture
@@ -313,9 +313,15 @@ class TestLocalFilesStore:
 
     @pytest.mark.asyncio
     async def test_move_file_not_found(self, local_service):
-        """Test moving a non-existent file."""
-        result = await local_service.move_file("nonexistent.txt", "destination.txt")
-        assert result is False
+        """A failed move raises, matching S3FilesStore.move_file (#24).
+
+        This assertion is the breaking change: the local backend used to
+        return False here, which no caller could combine with the S3
+        backend's raise. The original exception is chained as __cause__.
+        """
+        with pytest.raises(FilesStoreError) as excinfo:
+            await local_service.move_file("nonexistent.txt", "destination.txt")
+        assert isinstance(excinfo.value.__cause__, FileNotFoundError)
 
     @pytest.mark.asyncio
     async def test_delete_file(self, local_service):

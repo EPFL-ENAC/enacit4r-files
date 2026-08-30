@@ -1,7 +1,7 @@
 from typing import List, Tuple, Any
 from fastapi.datastructures import UploadFile
 from ..models.files import FileNode
-from .files import FilesStore
+from .files import FilesStore, FilesStoreError
 import logging
 import shutil
 import mimetypes
@@ -313,7 +313,12 @@ class LocalFilesStore(FilesStore):
         destination_path (str): The destination file path.
     
     Returns:
-        bool: True if the move was successful, False otherwise.
+        bool: True if the move was successful.
+
+    Raises:
+        FilesStoreError: When the move fails; the original exception is
+            chained as ``__cause__``. Matches S3FilesStore.move_file (#24)
+            so a caller can handle both backends with one ``except``.
     """
     try:
       source = self._get_full_path(source_path)
@@ -341,9 +346,11 @@ class LocalFilesStore(FilesStore):
       
       return True
     except Exception as e:
-      logging.error(f"Error moving file from {source_path} to {destination_path}: {e}")
-      return False
-  
+      logging.exception(f"Error moving file from {source_path} to {destination_path}")
+      raise FilesStoreError(
+        f"Error moving file from {source_path} to {destination_path}: {e}"
+      ) from e
+
   async def delete_file(self, file_path: str) -> bool:
     """Delete the file at the specified path. If the parent folder becomes empty, it is also deleted.
     
