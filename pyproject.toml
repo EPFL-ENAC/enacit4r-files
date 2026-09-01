@@ -1,6 +1,6 @@
 [project]
 name = "enacit4r_files"
-version = "1.2.0"
+version = "1.4.0"
 description = "Python file utils for EPFL ENAC IT4R developments"
 authors = [{name = "ymarcon", email = "yannick.marcon@epfl.ch"}]
 license = {text = "MIT"}
