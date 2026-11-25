@@ -5,7 +5,7 @@ description = "Python file utils for EPFL ENAC IT4R developments"
 authors = [{name = "ymarcon", email = "yannick.marcon@epfl.ch"}]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "aiobotocore>=2.5.0,<2.13.0",
     # Transitive via aiobotocore, floored explicitly for CVE-2026-69244 (#23).
@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 images = [
-    "pillow>=12.1.0",
+    "pillow>=13.0.0",
 ]
 
 test = [
