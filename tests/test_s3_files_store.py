@@ -853,7 +853,7 @@ class TestErrorTransparency:
         assert await s3_files_store.move_file("a.txt", "b.txt") is False
 
 
-def _service_with_client(**client_methods):
+def _service_with_client(init={}, **client_methods):
     service = S3Service(
         s3_endpoint_url="http://localhost:9000",
         s3_access_key_id="key",
@@ -861,6 +861,7 @@ def _service_with_client(**client_methods):
         region="us-east-1",
         bucket="test-bucket",
         path_prefix="test-prefix/",
+        **init,
     )
     client = MagicMock()
     for name, mock in client_methods.items():
@@ -919,6 +920,31 @@ class TestUploadFileobjNoHead:
             data=data, bucket="test-bucket", key="k", mimetype="text/plain")
         assert size == 11
         assert data.tell() == 0  # position restored for the PUT/body reader
+
+
+class TestAcl:
+    """Objects are public-read by default, no ACL is sent when it is None."""
+
+    @staticmethod
+    async def _acls(**kwargs):
+        ok = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+        service, client = _service_with_client(
+            put_object=AsyncMock(return_value=ok),
+            copy_object=AsyncMock(return_value=ok),
+            **kwargs)
+        await service._upload_fileobj(b"x", "bucket", "key", "text/plain")
+        await service.copy_file("a", "b")
+        return [call.call_args.kwargs.get("ACL", "not sent")
+                for call in (client.put_object, client.copy_object)]
+
+    @pytest.mark.asyncio
+    async def test_default(self):
+        assert await self._acls() == ["public-read"] * 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("acl,sent", [(None, "not sent"), ("private", "private")])
+    async def test_acl(self, acl, sent):
+        assert await self._acls(init={"acl": acl}) == [sent] * 2
 
 
 class TestSharedClient:
