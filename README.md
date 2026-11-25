@@ -106,6 +106,12 @@ s3_files_service = S3FilesStore(s3_service, key=key)
 # do something with s3_files_service
 ```
 
+#### Access to the objects
+
+Uploaded and copied objects are `public-read` by default: anyone who knows the URL
+of an object can read it. Use `S3Service(..., acl=None)` to send no ACL, so that the
+bucket default applies (normally private). The ACL of existing objects does not change.
+
 #### Connection lifecycle
 
 `S3Service` keeps **one long-lived S3 client** (and its TCP/TLS connection

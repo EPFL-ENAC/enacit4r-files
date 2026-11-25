@@ -27,7 +27,7 @@ class S3Error(FilesStoreError):
 
 class S3Service(object):
 
-    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False, max_pool_connections: int = 10):
+    def __init__(self, s3_endpoint_url: str, s3_access_key_id: str, s3_secret_access_key: str, region: str, bucket: str, path_prefix: str, with_checksums: bool = False, max_pool_connections: int = 10, acl: str | None = "public-read"):
         """Initiate the S3 service.
 
         Args:
@@ -43,6 +43,9 @@ class S3Service(object):
             client's pool (botocore default 10). Raise it when many operations run in
             parallel, e.g. listing large folders. Retry behavior is tunable without code
             via botocore's standard AWS_RETRY_MODE / AWS_MAX_ATTEMPTS environment variables.
+            acl (str, optional): Canned ACL of the uploaded and copied objects. Defaults to
+            "public-read": anyone who knows the URL of an object can read it. When None, no ACL
+            is sent and the bucket default applies, normally private.
         """
         self.s3_endpoint_url = s3_endpoint_url
         self.s3_access_key_id = s3_access_key_id
@@ -52,6 +55,7 @@ class S3Service(object):
         self.bucket = bucket
         self.with_checksums = with_checksums
         self.max_pool_connections = max_pool_connections
+        self._acl_kwargs = {"ACL": acl} if acl else {}
         # Shared long-lived client (created lazily) — see _client()
         self._shared_client = None
         self._shared_client_cm = None
@@ -227,8 +231,8 @@ class S3Service(object):
             response = await client.copy_object(
                 Bucket=self.bucket,
                 CopySource={'Bucket': self.bucket, 'Key': source_key},
-                ACL="public-read",
-                Key=destination_key)
+                Key=destination_key,
+                **self._acl_kwargs)
             if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
                 logging.info(
                     f"File copied path : {self.s3_endpoint_url}/{self.bucket}/{destination_key}")
@@ -615,8 +619,8 @@ class S3Service(object):
                 'Bucket': bucket,
                 'Key': key,
                 'Body': data,
-                'ACL': 'public-read',
-                'ContentType': mimetype
+                'ContentType': mimetype,
+                **self._acl_kwargs
             }
 
             resp = await client.put_object(**put_kwargs)
